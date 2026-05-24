@@ -1,0 +1,57 @@
+{
+  "$schema": "./schema.json",
+  "name": "Midnight Forge",
+  "id": "midnight-forge",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "A deep charcoal dark theme with electric blue accents, inspired by premium IDE aesthetics.",
+  "license": "MIT",
+  "tags": ["dark", "professional", "ide-inspired"],
+  "preview": {
+    "primary": "#0192F4",
+    "secondary": "#00C8FF",
+    "background": "#0F1115",
+    "surface": "#181B21",
+    "text": "#DEE2E6"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#0192F4",
+      "brandAccent": "#00C8FF",
+      "background": "#0F1115",
+      "surface": "#181B21",
+      "surfaceHover": "#21262D",
+      "textPrimary": "#DEE2E6",
+      "textSecondary": "#9BA3AF",
+      "textMuted": "#757C8A",
+      "border": "#2A2F3A",
+      "success": "#4ADE80",
+      "warning": "#FBBF24",
+      "error": "#F87171",
+      "userMessageText": "#DEE2E6"
+    },
+    "typography": {
+      "fontFamily": "JetBrains Mono",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\"><path d=\"M16 2L4 8v16l12 6 12-6V8L16 2z\" stroke=\"#0192F4\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M16 2v28M4 8l12 6 12-6\" stroke=\"#0192F4\" stroke-width=\"2\" stroke-linejoin=\"round\"/><circle cx=\"16\" cy=\"17\" r=\"3\" fill=\"#0192F4\"/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "\u2699\uFE0F"
+    }
+  },
+  "terminal": {
+    "userColor": "#4ADE80",
+    "assistantColor": "#0192F4",
+    "systemColor": "#9BA3AF",
+    "errorColor": "#F87171",
+    "successColor": "#4ADE80",
+    "backgroundColor": "#0A0C10",
+    "promptColor": "#0192F4",
+    "bannerAscii": "███╗   ███╗██╗██████╗ ███╗   ██╗██╗ ██████╗ ██╗  ██╗████████╗\n████╗ ████║██║██╔══██╗████╗  ██║██║██╔════╝ ██║  ██║╚══██╔══╝\n██╔████╔██║██║██║  ██║██╔██╗ ██║██║██║  ███╗███████║   ██║   \n██║╚██╔╝██║██║██║  ██║██║╚██╗██║██║██║   ██║██╔══██║   ██║   \n██║ ╚═╝ ██║██║██████╔╝██║ ╚████║██║╚██████╔╝██║  ██║   ██║   \n╚═╝     ╚═╝╚═╝╚═════╝ ╚═╝  ╚═══╝╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   "
+  }
+}

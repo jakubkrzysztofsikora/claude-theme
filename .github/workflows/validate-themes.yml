@@ -1,0 +1,67 @@
+name: Validate Themes
+
+on:
+  pull_request:
+    paths:
+      - 'themes/**'
+  push:
+    branches: [main, master]
+    paths:
+      - 'themes/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate Theme Files
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate all themes
+        run: |
+          echo "=== Validating theme files ==="
+          node scripts/validate-theme.js themes/*/theme.json
+          echo "=== All themes valid ==="
+
+      - name: Check theme uniqueness
+        run: |
+          echo "=== Checking theme ID uniqueness ==="
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const themeDirs = fs.readdirSync('themes', { withFileTypes: true })
+              .filter(d => d.isDirectory() && d.name !== 'schema.json')
+              .map(d => d.name);
+            const ids = new Set();
+            let errors = 0;
+            for (const dir of themeDirs) {
+              const file = path.join('themes', dir, 'theme.json');
+              if (!fs.existsSync(file)) continue;
+              const theme = JSON.parse(fs.readFileSync(file, 'utf8'));
+              if (ids.has(theme.id)) {
+                console.error('Duplicate theme ID: ' + theme.id + ' in ' + dir);
+                errors++;
+              }
+              ids.add(theme.id);
+            }
+            if (errors > 0) process.exit(1);
+            console.log('All theme IDs are unique (' + ids.size + ' themes)');
+          "
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Theme validation failed. Please check the workflow logs for details and fix any schema violations.'
+            });

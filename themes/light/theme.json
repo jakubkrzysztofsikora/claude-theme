@@ -1,0 +1,56 @@
+{
+  "$schema": "./schema.json",
+  "name": "Clean Slate",
+  "id": "clean-slate",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "A clean, minimal light theme with professional blue accents and warm gray surfaces.",
+  "license": "MIT",
+  "tags": ["light", "minimal", "professional"],
+  "preview": {
+    "primary": "#2563EB",
+    "secondary": "#3B82F6",
+    "background": "#FAFAF9",
+    "surface": "#FFFFFF",
+    "text": "#1C1917"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#2563EB",
+      "brandAccent": "#3B82F6",
+      "background": "#FAFAF9",
+      "surface": "#FFFFFF",
+      "surfaceHover": "#F5F5F4",
+      "textPrimary": "#1C1917",
+      "textSecondary": "#57534E",
+      "textMuted": "#78726E",
+      "border": "#E7E5E4",
+      "success": "#00862D",
+      "warning": "#B95700",
+      "error": "#DC2626",
+      "userMessageText": "#1C1917"
+    },
+    "typography": {
+      "fontFamily": "Inter",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\"><rect x=\"4\" y=\"3\" width=\"24\" height=\"26\" rx=\"3\" stroke=\"#2563EB\" stroke-width=\"2\"/><path d=\"M4 10h24\" stroke=\"#2563EB\" stroke-width=\"2\"/><path d=\"M10 16h12\" stroke=\"#3B82F6\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M10 21h8\" stroke=\"#3B82F6\" stroke-width=\"2\" stroke-linecap=\"round\"/><circle cx=\"22\" cy=\"7\" r=\"1.5\" fill=\"#2563EB\"/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "\u270F\uFE0F"
+    }
+  },
+  "terminal": {
+    "userColor": "#008229",
+    "assistantColor": "#2563EB",
+    "systemColor": "#766F6A",
+    "errorColor": "#DC2626",
+    "successColor": "#00862D",
+    "backgroundColor": "#F5F5F4",
+    "promptColor": "#2563EB"
+  }
+}

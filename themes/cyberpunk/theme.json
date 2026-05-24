@@ -1,0 +1,56 @@
+{
+  "$schema": "./schema.json",
+  "name": "Neon District",
+  "id": "neon-district",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "A high-energy cyberpunk theme with hot pinks, electric cyans, and vivid purples.",
+  "license": "MIT",
+  "tags": ["dark", "cyberpunk", "neon", "futuristic"],
+  "preview": {
+    "primary": "#FF007F",
+    "secondary": "#00F0FF",
+    "background": "#0A0612",
+    "surface": "#1A1025",
+    "text": "#F8F8FF"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#FF007F",
+      "brandAccent": "#00F0FF",
+      "background": "#0A0612",
+      "surface": "#1A1025",
+      "surfaceHover": "#251535",
+      "textPrimary": "#F8F8FF",
+      "textSecondary": "#9CA3AF",
+      "textMuted": "#85769A",
+      "border": "#2A1F3D",
+      "success": "#39FF14",
+      "warning": "#FFE600",
+      "error": "#FF1A1A",
+      "userMessageText": "#FF007F"
+    },
+    "typography": {
+      "fontFamily": "Space Grotesk",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='currentColor'><path d='M4 4h4v4H4zM24 4h4v4h-4zM8 8h4v4H8zM20 8h4v4h-4zM12 12h8v4h-8zM6 16h4v4H6zM22 16h4v4h-4zM10 20h12v4H10zM14 24h4v4h-4zM2 8h4v4H2zM26 8h4v4h-4z'/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "⚡"
+    }
+  },
+  "terminal": {
+    "userColor": "#FF007F",
+    "assistantColor": "#F8F8FF",
+    "systemColor": "#00F0FF",
+    "errorColor": "#FF1A1A",
+    "successColor": "#39FF14",
+    "backgroundColor": "#0A0612",
+    "promptColor": "#FF007F"
+  }
+}

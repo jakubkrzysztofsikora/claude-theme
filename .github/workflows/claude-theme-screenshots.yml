@@ -1,0 +1,75 @@
+name: Claude Theme Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - ".claude/skills/whitelabel-theme/**"
+      - "themes/**"
+      - ".github/workflows/claude-theme-screenshots.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    name: Install Claude, Apply Themes, Capture Screenshots
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude CLI
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Verify Claude CLI install (best effort)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          command -v claude || true
+          claude --version || true
+
+      - name: Install Playwright runtime
+        run: |
+          npm init -y
+          npm install playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Apply 3 themes one by one + screenshot previews
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots
+
+          THEMES=(
+            "themes/dark/theme.json"
+            "themes/light/theme.json"
+            "themes/cyberpunk/theme.json"
+          )
+
+          for THEME in "${THEMES[@]}"; do
+            export PATH="$HOME/.local/bin:$PATH"
+            node .claude/skills/whitelabel-theme/build-theme.js apply "$THEME"
+
+            THEME_ID=$(node -e "const fs=require('fs');const t=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(t.id);" "$THEME")
+            node .claude/skills/whitelabel-theme/build-theme.js preview "$THEME" 8765 > "screenshots/${THEME_ID}.preview.log" 2>&1 &
+            PREVIEW_PID=$!
+            sleep 3
+
+            node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch({headless:true}); const p = await b.newPage({ viewport: { width: 1600, height: 1000 } }); await p.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' }); await p.screenshot({ path: 'screenshots/' + process.argv[1] + '.png', fullPage: true }); await b.close(); })().catch((e)=>{ console.error(e); process.exit(1); });" "$THEME_ID"
+
+            kill "$PREVIEW_PID" || true
+            wait "$PREVIEW_PID" 2>/dev/null || true
+          done
+
+      - name: Upload themed screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-themed-screenshots
+          path: screenshots/*.png
+          if-no-files-found: error

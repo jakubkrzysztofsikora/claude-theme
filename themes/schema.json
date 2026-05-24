@@ -1,0 +1,307 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://claude.themes/schema/v1/theme.json",
+  "title": "Claude White-Label Theme Schema v1",
+  "description": "JSON Schema for validating Claude white-label theme files. All themes must conform to this schema to be processed by the build system.",
+  "type": "object",
+  "required": [
+    "name",
+    "id",
+    "version",
+    "author",
+    "description",
+    "license",
+    "preview",
+    "tokens"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable theme name",
+      "minLength": 1,
+      "maxLength": 64,
+      "examples": ["Ocean Dark", "Rose Quartz"]
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique kebab-case identifier for the theme",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 64,
+      "examples": ["ocean-dark", "rose-quartz"]
+    },
+    "version": {
+      "type": "string",
+      "description": "SemVer version string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*))?(?:\\+([0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*))?$",
+      "examples": ["1.0.0", "2.1.0-beta.1"]
+    },
+    "author": {
+      "type": "string",
+      "description": "Theme author name or organization",
+      "minLength": 1,
+      "examples": ["Jane Doe", "Claude Themes Community"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of the theme",
+      "minLength": 1,
+      "maxLength": 512,
+      "examples": ["A calming ocean-inspired dark theme"]
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier or custom license string",
+      "minLength": 1,
+      "examples": ["MIT", "Apache-2.0", "CC-BY-4.0"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Searchable tags for categorizing the theme",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      },
+      "minItems": 0,
+      "uniqueItems": true,
+      "examples": [["dark", "professional", "blue"]]
+    },
+    "preview": {
+      "type": "object",
+      "description": "Five representative colors for theme previews and thumbnails",
+      "required": ["background", "surface", "textPrimary", "brandPrimary", "userMessageText"],
+      "properties": {
+        "background": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Main background color"
+        },
+        "surface": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Card/surface background color"
+        },
+        "textPrimary": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Primary text color"
+        },
+        "brandPrimary": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Brand accent color"
+        },
+        "userMessageText": {
+          "$ref": "#/definitions/hexColor",
+          "description": "User message text color"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tokens": {
+      "type": "object",
+      "description": "Design tokens for styling Claude's interface",
+      "required": ["color"],
+      "properties": {
+        "color": {
+          "type": "object",
+          "description": "Color tokens for the theme",
+          "required": [
+            "brandPrimary",
+            "background",
+            "surface",
+            "textPrimary",
+            "userMessageText"
+          ],
+          "properties": {
+            "brandPrimary": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Primary brand/accent color used for buttons, links, highlights"
+            },
+            "brandSecondary": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Secondary brand color for gradients and accents"
+            },
+            "background": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Main page background color"
+            },
+            "surface": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Card, input, and elevated surface background color"
+            },
+            "surfaceHover": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Surface color on hover state"
+            },
+            "textPrimary": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Primary text color for headings and body"
+            },
+            "textSecondary": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Secondary/muted text color"
+            },
+            "textMuted": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Tertiary/hint text color"
+            },
+            "border": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Border and divider color"
+            },
+            "borderFocus": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Border color when element is focused"
+            },
+            "userMessageText": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Text color inside user message bubbles"
+            },
+            "userMessageBackground": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Background color of user message bubbles"
+            },
+            "assistantMessageText": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Text color inside assistant message bubbles"
+            },
+            "assistantMessageBackground": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Background color of assistant message bubbles"
+            },
+            "codeBackground": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Inline and block code background color"
+            },
+            "codeText": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Code text color"
+            },
+            "error": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Error state color"
+            },
+            "success": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Success state color"
+            },
+            "warning": {
+              "$ref": "#/definitions/hexColor",
+              "description": "Warning state color"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/hexColor"
+          }
+        },
+        "typography": {
+          "type": "object",
+          "description": "Optional typography customization",
+          "properties": {
+            "fontFamily": {
+              "type": "string",
+              "description": "CSS font-family value",
+              "examples": ["'Inter', sans-serif", "'Fira Code', monospace"]
+            },
+            "fontUrl": {
+              "type": "string",
+              "description": "URL to a web font (Google Fonts, self-hosted, etc.)",
+              "format": "uri",
+              "pattern": "^https?://.+$",
+              "examples": ["https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700"]
+            },
+            "fontSizeBase": {
+              "type": "string",
+              "description": "Base font size",
+              "pattern": "^\\d+(\\.\\d+)?(px|rem|em)$",
+              "examples": ["16px", "1rem"]
+            },
+            "lineHeight": {
+              "type": "number",
+              "description": "Line height multiplier",
+              "minimum": 1,
+              "maximum": 3,
+              "examples": [1.5, 1.75]
+            }
+          },
+          "additionalProperties": false
+        },
+        "logo": {
+          "type": "object",
+          "description": "Optional custom logo replacement",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Logo format type",
+              "enum": ["svg", "text", "emoji"]
+            },
+            "content": {
+              "type": "string",
+              "description": "SVG markup, text string, or emoji character(s)",
+              "minLength": 1
+            },
+            "viewBox": {
+              "type": "string",
+              "description": "SVG viewBox attribute (required when type=svg)",
+              "pattern": "^\\d+( \\d+){3}$",
+              "examples": ["0 0 32 32"]
+            }
+          },
+          "required": ["type", "content"],
+          "additionalProperties": false
+        },
+        "favicon": {
+          "type": "string",
+          "description": "Optional favicon URL or data URI",
+          "format": "uri",
+          "examples": ["data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'..."]
+        }
+      },
+      "additionalProperties": false
+    },
+    "terminal": {
+      "type": "object",
+      "description": "Optional terminal color overrides for Claude CLI",
+      "properties": {
+        "userColor": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Color for user messages in terminal"
+        },
+        "assistantColor": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Color for assistant messages in terminal"
+        },
+        "backgroundColor": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Terminal background color"
+        },
+        "promptColor": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Input prompt color"
+        },
+        "errorColor": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Error message color"
+        },
+        "successColor": {
+          "$ref": "#/definitions/hexColor",
+          "description": "Success message color"
+        },
+        "bannerAscii": {
+          "type": "string",
+          "description": "Optional ASCII art banner displayed by Claude CLI integrations when this theme is active",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "hexColor": {
+      "type": "string",
+      "description": "6-digit hexadecimal color with leading hash",
+      "pattern": "^#[0-9A-Fa-f]{6}$",
+      "examples": ["#FF5733", "#1a1a2e"]
+    }
+  }
+}
