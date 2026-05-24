@@ -2,6 +2,11 @@ name: Claude Theme Screenshots
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".claude/skills/whitelabel-theme/**"
+      - "themes/**"
+      - ".github/workflows/claude-theme-screenshots.yml"
   push:
     branches: [main, master]
     paths:
@@ -29,16 +34,16 @@ jobs:
       - name: Install Claude CLI
         run: curl -fsSL https://claude.ai/install.sh | bash
 
-      - name: Verify Claude CLI install (best effort)
+      - name: Verify Claude CLI install
         run: |
+          set -euo pipefail
           export PATH="$HOME/.local/bin:$PATH"
-          command -v claude || true
-          claude --version || true
+          command -v claude
+          claude --version
 
       - name: Install Playwright runtime
         run: |
-          npm init -y
-          npm install playwright@1.54.2
+          npm install --no-save playwright@1.54.2
           npx playwright install --with-deps chromium
 
       - name: Apply 3 themes one by one + screenshot previews
@@ -59,7 +64,13 @@ jobs:
             THEME_ID=$(node -e "const fs=require('fs');const t=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(t.id);" "$THEME")
             node .claude/skills/whitelabel-theme/build-theme.js preview "$THEME" 8765 > "screenshots/${THEME_ID}.preview.log" 2>&1 &
             PREVIEW_PID=$!
-            sleep 3
+
+            for _ in {1..30}; do
+              if curl -fsS "http://127.0.0.1:8765" >/dev/null; then
+                break
+              fi
+              sleep 1
+            done
 
             node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch({headless:true}); const p = await b.newPage({ viewport: { width: 1600, height: 1000 } }); await p.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' }); await p.screenshot({ path: 'screenshots/' + process.argv[1] + '.png', fullPage: true }); await b.close(); })().catch((e)=>{ console.error(e); process.exit(1); });" "$THEME_ID"
 
