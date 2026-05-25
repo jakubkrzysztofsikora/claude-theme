@@ -48,7 +48,7 @@ jobs:
           npm install --no-save playwright@1.54.2
           npx playwright install --with-deps chromium
 
-      - name: Apply 3 themes and screenshot real Claude terminal sessions
+      - name: Apply 3 themes and screenshot real Claude terminal interface
         run: |
           set -euo pipefail
           mkdir -p screenshots
@@ -71,9 +71,9 @@ jobs:
             tmux send-keys -t "$TMUX_SESSION" "export PATH=\"$HOME/.local/bin:\$PATH\"" C-m
             tmux send-keys -t "$TMUX_SESSION" "echo '[theme] $THEME_ID'" C-m
             tmux send-keys -t "$TMUX_SESSION" "claude --version" C-m
-            tmux send-keys -t "$TMUX_SESSION" "claude --help | sed -n '1,40p'" C-m
-            tmux send-keys -t "$TMUX_SESSION" "echo '[settings]'; cat \"$HOME/.claude/settings.json\"" C-m
-            sleep 3
+            # Open the real Claude terminal UI (interactive) for screenshot capture.
+            tmux send-keys -t "$TMUX_SESSION" "claude" C-m
+            sleep 8
             tmux capture-pane -pt "$TMUX_SESSION" -S -200 > "$TMUX_LOG"
 
             ttyd --writable --once --port 8765 tmux attach-session -t "$TMUX_SESSION" > "screenshots/${THEME_ID}.ttyd.log" 2>&1 &
@@ -87,6 +87,7 @@ jobs:
 
             node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch({headless:true}); const p = await b.newPage({ viewport: { width: 1800, height: 1000 } }); await p.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' }); await p.waitForTimeout(1500); await p.screenshot({ path: 'screenshots/' + process.argv[1] + '.png', fullPage: true }); await b.close(); })().catch((e)=>{ console.error(e); process.exit(1); });" "$THEME_ID"
 
+            tmux send-keys -t "$TMUX_SESSION" C-c
             kill "$TTYD_PID" || true
             wait "$TTYD_PID" 2>/dev/null || true
             tmux kill-session -t "$TMUX_SESSION" || true
