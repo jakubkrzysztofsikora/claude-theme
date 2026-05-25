@@ -1,0 +1,29 @@
+{
+  "totalThemes": 8,
+  "tagCounts": {
+    "light": 4,
+    "warm": 2,
+    "branded": 1,
+    "earthy": 1,
+    "dark": 3,
+    "cyberpunk": 1,
+    "neon": 1,
+    "futuristic": 1,
+    "professional": 2,
+    "ide-inspired": 1,
+    "high-contrast": 1,
+    "accessibility": 1,
+    "a11y": 1,
+    "wcag-aaa": 1,
+    "minimal": 1,
+    "minimalist": 1,
+    "monochrome": 1,
+    "grayscale": 1,
+    "nature": 1,
+    "green": 1,
+    "calm": 1,
+    "sepia": 1,
+    "comfortable": 1
+  },
+  "lastUpdated": "2026-05-24"
+}

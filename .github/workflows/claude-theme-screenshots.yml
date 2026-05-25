@@ -1,0 +1,103 @@
+name: Claude Theme Screenshots
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".claude/skills/whitelabel-theme/**"
+      - "themes/**"
+      - ".github/workflows/claude-theme-screenshots.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - ".claude/skills/whitelabel-theme/**"
+      - "themes/**"
+      - ".github/workflows/claude-theme-screenshots.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    name: Install Claude, Apply Themes, Capture Real Terminal Screenshots
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude CLI
+        run: curl -fsSL https://claude.ai/install.sh | bash
+
+      - name: Verify Claude CLI install
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          command -v claude
+          claude --version
+
+      - name: Install terminal + screenshot runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmux ttyd
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Apply 3 themes and screenshot real Claude terminal interface
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots
+
+          THEMES=(
+            "themes/dark/theme.json"
+            "themes/light/theme.json"
+            "themes/cyberpunk/theme.json"
+          )
+
+          for THEME in "${THEMES[@]}"; do
+            export PATH="$HOME/.local/bin:$PATH"
+            node .claude/skills/whitelabel-theme/build-theme.js apply "$THEME"
+
+            THEME_ID=$(node -e "const fs=require('fs');const t=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(t.id);" "$THEME")
+
+            TMUX_SESSION="claude-${THEME_ID}"
+            TMUX_LOG="screenshots/${THEME_ID}.terminal.log"
+            tmux new-session -d -s "$TMUX_SESSION"
+            tmux send-keys -t "$TMUX_SESSION" "export PATH=\"$HOME/.local/bin:\$PATH\"" C-m
+            tmux send-keys -t "$TMUX_SESSION" "echo '[theme] $THEME_ID'" C-m
+            tmux send-keys -t "$TMUX_SESSION" "claude --version" C-m
+            # Open the real Claude terminal UI (interactive) for screenshot capture.
+            tmux send-keys -t "$TMUX_SESSION" "claude" C-m
+            sleep 8
+            tmux capture-pane -pt "$TMUX_SESSION" -S -200 > "$TMUX_LOG"
+
+            ttyd --writable --once --port 8765 tmux attach-session -t "$TMUX_SESSION" > "screenshots/${THEME_ID}.ttyd.log" 2>&1 &
+            TTYD_PID=$!
+            for _ in {1..30}; do
+              if curl -fsS "http://127.0.0.1:8765" >/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+
+            node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch({headless:true}); const p = await b.newPage({ viewport: { width: 1800, height: 1000 } }); await p.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' }); await p.waitForTimeout(1500); await p.screenshot({ path: 'screenshots/' + process.argv[1] + '.png', fullPage: true }); await b.close(); })().catch((e)=>{ console.error(e); process.exit(1); });" "$THEME_ID"
+
+            tmux send-keys -t "$TMUX_SESSION" C-c
+            kill "$TTYD_PID" || true
+            wait "$TTYD_PID" 2>/dev/null || true
+            tmux kill-session -t "$TMUX_SESSION" || true
+          done
+
+      - name: Upload Claude terminal screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-terminal-themed-screenshots
+          path: |
+            screenshots/*.png
+            screenshots/*.log
+          if-no-files-found: error

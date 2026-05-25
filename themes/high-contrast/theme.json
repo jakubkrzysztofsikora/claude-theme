@@ -1,0 +1,56 @@
+{
+  "$schema": "./schema.json",
+  "name": "A11y First",
+  "id": "a11y-first",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "WCAG 2.1 AAA compliant high-contrast theme with pure black background, pure white text, vivid colorblind-safe accents, and Atkinson Hyperlegible font for maximum accessibility.",
+  "license": "MIT",
+  "tags": ["high-contrast", "accessibility", "a11y", "wcag-aaa"],
+  "preview": {
+    "primary": "#00CCFF",
+    "secondary": "#FFD600",
+    "background": "#000000",
+    "surface": "#141414",
+    "text": "#FFFFFF"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#00CCFF",
+      "brandAccent": "#FFD600",
+      "background": "#000000",
+      "surface": "#141414",
+      "surfaceHover": "#2A2A2A",
+      "textPrimary": "#FFFFFF",
+      "textSecondary": "#B8B8B8",
+      "textMuted": "#B5B5B5",
+      "border": "#FFFFFF",
+      "success": "#00FF66",
+      "warning": "#FFAA00",
+      "error": "#FF8080",
+      "userMessageText": "#00FFCC"
+    },
+    "typography": {
+      "fontFamily": "Atkinson Hyperlegible",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#00CCFF\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"12\"/><circle cx=\"16\" cy=\"16\" r=\"5\" fill=\"#00CCFF\"/><path d=\"M2 16h6M24 16h6M16 2v6M16 24v6\"/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "eye"
+    }
+  },
+  "terminal": {
+    "userColor": "#00FFCC",
+    "assistantColor": "#00CCFF",
+    "systemColor": "#FFD600",
+    "errorColor": "#FF8080",
+    "successColor": "#00FF66",
+    "backgroundColor": "#000000",
+    "promptColor": "#FFFFFF"
+  }
+}

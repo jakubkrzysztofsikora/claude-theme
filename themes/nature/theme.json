@@ -1,0 +1,56 @@
+{
+  "$schema": "./schema.json",
+  "name": "Forest Canopy",
+  "id": "forest-canopy",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "A calming, organic theme inspired by deep forest greens and moss tones.",
+  "license": "MIT",
+  "tags": ["dark", "nature", "green", "calm"],
+  "preview": {
+    "primary": "#4ADE80",
+    "secondary": "#8B6914",
+    "background": "#0F1F17",
+    "surface": "#1A2E23",
+    "text": "#F0EDE5"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#4ADE80",
+      "brandAccent": "#8B6914",
+      "background": "#0F1F17",
+      "surface": "#1A2E23",
+      "surfaceHover": "#243B2E",
+      "textPrimary": "#F0EDE5",
+      "textSecondary": "#A3A092",
+      "textMuted": "#908B7E",
+      "border": "#2A3E33",
+      "success": "#65A30D",
+      "warning": "#D97706",
+      "error": "#D4686A",
+      "userMessageText": "#4ADE80"
+    },
+    "typography": {
+      "fontFamily": "Nunito",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='currentColor'><path d='M16 2C10 2 6 8 6 14c0 4 2 7 4 9l6 7 6-7c2-2 4-5 4-9 0-6-4-12-10-12zm0 4c3.5 0 6 4 6 8 0 2.5-1 4.5-2.5 6L16 26l-3.5-6C11 18.5 10 16.5 10 14c0-4 2.5-8 6-8z'/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "🌿"
+    }
+  },
+  "terminal": {
+    "userColor": "#4ADE80",
+    "assistantColor": "#F0EDE5",
+    "systemColor": "#8B6914",
+    "errorColor": "#D4686A",
+    "successColor": "#65A30D",
+    "backgroundColor": "#0F1F17",
+    "promptColor": "#4ADE80"
+  }
+}

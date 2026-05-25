@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate release artifacts
+        run: |
+          mkdir -p release
+          # Package the core engine
+          tar -czf release/claude-whitelabel-engine.tar.gz \
+            .claude/skills/whitelabel-theme/ \
+            themes/schema.json \
+            scripts/ \
+            LICENSE
+          # Package all themes
+          tar -czf release/claude-whitelabel-themes-all.tar.gz themes/ LICENSE
+          # Create individual theme packages
+          for dir in themes/*/; do
+            name=$(basename "$dir")
+            [ "$name" = "schema.json" ] && continue
+            tar -czf "release/theme-${name}.tar.gz" -C themes "$name" ../LICENSE
+          done
+          ls -la release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*.tar.gz
+          generate_release_notes: true
+          body: |
+            ## Claude White-Label Themes ${{ github.ref_name }}
+
+            ### Quick Start
+            ```bash
+            git clone https://github.com/${{ github.repository }}.git
+            cd claude-whitelabel-themes
+            node .claude/skills/whitelabel-theme/build-theme.js list
+            node .claude/skills/whitelabel-theme/build-theme.js apply themes/dark/theme.json
+            ```
+
+            ### Browse Themes
+            Visit the [Theme Marketplace](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/) to preview all themes.
+
+            ### What's Included
+            - Zero-dependency core engine (Node.js only)
+            - Browser extension generator
+            - CLI compiler with 6 commands
+            - Theme validator
+            - 8 built-in themes
+
+            ### Submit Your Theme
+            See [CONTRIBUTING.md](https://github.com/${{ github.repository }}/blob/main/CONTRIBUTING.md) for theme submission guidelines.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

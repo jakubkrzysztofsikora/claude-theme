@@ -1,0 +1,21 @@
+{
+  "name": "claude-whitelabel-themes",
+  "version": "1.0.0",
+  "description": "Zero-dependency white-label theming system for Claude. Community theme marketplace with browser extension + CLI.",
+  "scripts": {
+    "theme:apply": "node .claude/skills/whitelabel-theme/build-theme.js apply",
+    "theme:compile": "node .claude/skills/whitelabel-theme/build-theme.js compile",
+    "theme:list": "node .claude/skills/whitelabel-theme/build-theme.js list",
+    "theme:validate": "node .claude/skills/whitelabel-theme/build-theme.js validate",
+    "theme:preview": "node .claude/skills/whitelabel-theme/build-theme.js preview",
+    "theme:init": "node .claude/skills/whitelabel-theme/build-theme.js init",
+    "marketplace:build": "node scripts/build-marketplace.js && cd marketplace && npm run build",
+    "validate:themes": "node scripts/validate-theme.js themes/*/theme.json"
+  },
+  "keywords": ["claude", "theme", "whitelabel", "customization", "zero-dependency"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/claude-whitelabel-themes.git"
+  }
+}

@@ -1,0 +1,168 @@
+[
+  {
+    "name": "Terracotta Pro",
+    "id": "terracotta-pro",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "Warm, earthy branded theme inspired by terracotta and clay with an elegant editorial feel. Features a cream background, rich terracotta accents, and Source Serif 4 typography.",
+    "license": "MIT",
+    "tags": [
+      "light",
+      "warm",
+      "branded",
+      "earthy"
+    ],
+    "preview": {
+      "primary": "#9A4822",
+      "secondary": "#A14D32",
+      "background": "#FDF6F0",
+      "surface": "#F4EDE6",
+      "text": "#3D2B1F"
+    }
+  },
+  {
+    "name": "Neon District",
+    "id": "neon-district",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "A high-energy cyberpunk theme with hot pinks, electric cyans, and vivid purples.",
+    "license": "MIT",
+    "tags": [
+      "dark",
+      "cyberpunk",
+      "neon",
+      "futuristic"
+    ],
+    "preview": {
+      "primary": "#FF007F",
+      "secondary": "#00F0FF",
+      "background": "#0A0612",
+      "surface": "#1A1025",
+      "text": "#F8F8FF"
+    }
+  },
+  {
+    "name": "Midnight Forge",
+    "id": "midnight-forge",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "A deep charcoal dark theme with electric blue accents, inspired by premium IDE aesthetics.",
+    "license": "MIT",
+    "tags": [
+      "dark",
+      "professional",
+      "ide-inspired"
+    ],
+    "preview": {
+      "primary": "#0192F4",
+      "secondary": "#00C8FF",
+      "background": "#0F1115",
+      "surface": "#181B21",
+      "text": "#DEE2E6"
+    }
+  },
+  {
+    "name": "A11y First",
+    "id": "a11y-first",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "WCAG 2.1 AAA compliant high-contrast theme with pure black background, pure white text, vivid colorblind-safe accents, and Atkinson Hyperlegible font for maximum accessibility.",
+    "license": "MIT",
+    "tags": [
+      "high-contrast",
+      "accessibility",
+      "a11y",
+      "wcag-aaa"
+    ],
+    "preview": {
+      "primary": "#00CCFF",
+      "secondary": "#FFD600",
+      "background": "#000000",
+      "surface": "#141414",
+      "text": "#FFFFFF"
+    }
+  },
+  {
+    "name": "Clean Slate",
+    "id": "clean-slate",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "A clean, minimal light theme with professional blue accents and warm gray surfaces.",
+    "license": "MIT",
+    "tags": [
+      "light",
+      "minimal",
+      "professional"
+    ],
+    "preview": {
+      "primary": "#2563EB",
+      "secondary": "#3B82F6",
+      "background": "#FAFAF9",
+      "surface": "#FFFFFF",
+      "text": "#1C1917"
+    }
+  },
+  {
+    "name": "Mono Space",
+    "id": "mono-space",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "Strictly monochromatic. No accent colors \u2014 pure grayscale typography-first design.",
+    "license": "MIT",
+    "tags": [
+      "light",
+      "minimalist",
+      "monochrome",
+      "grayscale"
+    ],
+    "preview": {
+      "primary": "#1A1A1A",
+      "secondary": "#737373",
+      "background": "#FFFFFF",
+      "surface": "#F5F5F5",
+      "text": "#1A1A1A"
+    }
+  },
+  {
+    "name": "Forest Canopy",
+    "id": "forest-canopy",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "A calming, organic theme inspired by deep forest greens and moss tones.",
+    "license": "MIT",
+    "tags": [
+      "dark",
+      "nature",
+      "green",
+      "calm"
+    ],
+    "preview": {
+      "primary": "#4ADE80",
+      "secondary": "#8B6914",
+      "background": "#0F1F17",
+      "surface": "#1A2E23",
+      "text": "#F0EDE5"
+    }
+  },
+  {
+    "name": "Parchment",
+    "id": "parchment",
+    "version": "1.0.0",
+    "author": "Claude Themes Community",
+    "description": "Warm and inviting like aged paper by candlelight. A comfortable reading experience with golden amber tones.",
+    "license": "MIT",
+    "tags": [
+      "light",
+      "warm",
+      "sepia",
+      "comfortable"
+    ],
+    "preview": {
+      "primary": "#A07818",
+      "secondary": "#C49A6C",
+      "background": "#F5F0E8",
+      "surface": "#EDE5D8",
+      "text": "#2D2416"
+    }
+  }
+]
