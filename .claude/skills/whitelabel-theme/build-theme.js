@@ -66,7 +66,8 @@ function readJson(filePath) {
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    log('error', `Failed to read or parse JSON at ${filePath}: ${err.message}`);
     return null;
   }
 }
@@ -444,9 +445,35 @@ body {
     if (!logo) return null;
 
     if (logo.type === 'svg') {
-      const wrapper = document.createElement('div');
-      wrapper.innerHTML = \`<svg viewBox="\${logo.viewBox || '0 0 32 32'}" style="width:32px;height:32px;fill:currentColor;">\${logo.content}</svg>\`;
-      return wrapper.firstElementChild;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(logo.content || '', 'image/svg+xml');
+      const parsedSvg = doc.documentElement;
+      if (!parsedSvg || parsedSvg.nodeName.toLowerCase() !== 'svg') {
+        console.warn('[ClaudeTheme] Invalid SVG logo content; expected <svg> root element');
+        return null;
+      }
+      const hasParseError = doc.getElementsByTagName('parsererror').length > 0;
+      if (hasParseError) {
+        console.warn('[ClaudeTheme] Invalid SVG logo content; parsererror returned');
+        return null;
+      }
+      for (const el of parsedSvg.querySelectorAll('script, foreignObject')) {
+        el.remove();
+      }
+      for (const el of parsedSvg.querySelectorAll('*')) {
+        for (const attr of Array.from(el.attributes)) {
+          const name = attr.name.toLowerCase();
+          const value = attr.value.trim().toLowerCase();
+          if (name.startsWith('on') || value.startsWith('javascript:')) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      }
+      if (!parsedSvg.getAttribute('viewBox')) {
+        parsedSvg.setAttribute('viewBox', logo.viewBox || '0 0 32 32');
+      }
+      parsedSvg.setAttribute('style', 'width:32px;height:32px;fill:currentColor;');
+      return document.importNode(parsedSvg, true);
     }
 
     if (logo.type === 'text') {
@@ -707,12 +734,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ activeTheme: THEME_ID, themeName: '${theme.name}' });
 });
 
-// Listen for messages from popup or external sources
-chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
-  handleMessage(request, sender, sendResponse);
-  return true;
-});
-
+// Listen for messages from popup and internal extension components only
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   handleMessage(request, sender, sendResponse);
   return true;
@@ -968,8 +990,9 @@ function cmdApply(themeFilePath) {
     settings = {};
   }
 
-  // Update theme section
+  // Update theme section while preserving user-defined keys
   settings.theme = {
+    ...(settings.theme || {}),
     activeThemeId: theme.id,
     userMessageColor: theme.terminal?.userColor || theme.tokens?.color?.userMessageText || '#ffffff',
     assistantMessageColor: theme.terminal?.assistantColor || theme.tokens?.color?.assistantMessageText || theme.tokens?.color?.textPrimary || '#e0e0ff',
