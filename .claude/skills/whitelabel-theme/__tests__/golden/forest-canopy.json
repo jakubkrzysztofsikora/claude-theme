@@ -1,0 +1,20 @@
+{
+  "name": "Forest Canopy",
+  "base": "dark",
+  "overrides": {
+    "claude": "#4ADE80",
+    "promptBorder": "#4ADE80",
+    "briefLabelYou": "#4ADE80",
+    "briefLabelClaude": "#F0EDE5",
+    "text": "#F0EDE5",
+    "error": "#D4686A",
+    "success": "#65A30D",
+    "warning": "#D97706",
+    "planMode": "#8B6914",
+    "ide": "#8B6914",
+    "userMessageBackground": "#0F1F17",
+    "bashMessageBackgroundColor": "#0F1F17",
+    "memoryBackgroundColor": "#0F1F17",
+    "userMessageBackgroundHover": "#1d2c25"
+  }
+}

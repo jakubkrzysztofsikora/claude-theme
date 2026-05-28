@@ -1,0 +1,20 @@
+{
+  "name": "Midnight Forge",
+  "base": "dark",
+  "overrides": {
+    "claude": "#0192F4",
+    "promptBorder": "#0192F4",
+    "briefLabelYou": "#4ADE80",
+    "briefLabelClaude": "#0192F4",
+    "text": "#0192F4",
+    "error": "#F87171",
+    "success": "#4ADE80",
+    "warning": "#FBBF24",
+    "planMode": "#9BA3AF",
+    "ide": "#9BA3AF",
+    "userMessageBackground": "#0A0C10",
+    "bashMessageBackgroundColor": "#0A0C10",
+    "memoryBackgroundColor": "#0A0C10",
+    "userMessageBackgroundHover": "#191b1e"
+  }
+}

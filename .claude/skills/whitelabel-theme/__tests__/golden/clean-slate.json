@@ -1,0 +1,20 @@
+{
+  "name": "Clean Slate",
+  "base": "light",
+  "overrides": {
+    "claude": "#2563EB",
+    "promptBorder": "#2563EB",
+    "briefLabelYou": "#008229",
+    "briefLabelClaude": "#2563EB",
+    "text": "#2563EB",
+    "error": "#DC2626",
+    "success": "#00862D",
+    "warning": "#B95700",
+    "planMode": "#766F6A",
+    "ide": "#766F6A",
+    "userMessageBackground": "#F5F5F4",
+    "bashMessageBackgroundColor": "#F5F5F4",
+    "memoryBackgroundColor": "#F5F5F4",
+    "userMessageBackgroundHover": "#f6f6f5"
+  }
+}

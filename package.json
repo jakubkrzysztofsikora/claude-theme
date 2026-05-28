@@ -9,6 +9,7 @@
     "theme:validate": "node .claude/skills/whitelabel-theme/build-theme.js validate",
     "theme:preview": "node .claude/skills/whitelabel-theme/build-theme.js preview",
     "theme:init": "node .claude/skills/whitelabel-theme/build-theme.js init",
+    "test": "node --test .claude/skills/whitelabel-theme/__tests__/*.test.js",
     "marketplace:build": "node scripts/build-marketplace.js && cd marketplace && npm run build",
     "validate:themes": "node scripts/validate-theme.js themes/*/theme.json"
   },

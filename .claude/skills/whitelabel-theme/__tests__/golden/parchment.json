@@ -1,0 +1,20 @@
+{
+  "name": "Parchment",
+  "base": "light",
+  "overrides": {
+    "claude": "#A07818",
+    "promptBorder": "#A07818",
+    "briefLabelYou": "#A07818",
+    "briefLabelClaude": "#6B5B4F",
+    "text": "#6B5B4F",
+    "error": "#A05241",
+    "success": "#6B8E5A",
+    "warning": "#C9963A",
+    "planMode": "#9B8B7B",
+    "ide": "#9B8B7B",
+    "userMessageBackground": "#F5F0E8",
+    "bashMessageBackgroundColor": "#F5F0E8",
+    "memoryBackgroundColor": "#F5F0E8",
+    "userMessageBackgroundHover": "#f6f1e9"
+  }
+}

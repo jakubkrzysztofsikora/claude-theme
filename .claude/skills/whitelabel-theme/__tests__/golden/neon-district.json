@@ -1,0 +1,20 @@
+{
+  "name": "Neon District",
+  "base": "dark",
+  "overrides": {
+    "claude": "#FF007F",
+    "promptBorder": "#FF007F",
+    "briefLabelYou": "#FF007F",
+    "briefLabelClaude": "#F8F8FF",
+    "text": "#F8F8FF",
+    "error": "#FF1A1A",
+    "success": "#39FF14",
+    "warning": "#FFE600",
+    "planMode": "#00F0FF",
+    "ide": "#00F0FF",
+    "userMessageBackground": "#0A0612",
+    "bashMessageBackgroundColor": "#0A0612",
+    "memoryBackgroundColor": "#0A0612",
+    "userMessageBackgroundHover": "#191520"
+  }
+}

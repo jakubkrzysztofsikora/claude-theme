@@ -1,0 +1,20 @@
+{
+  "name": "A11y First",
+  "base": "dark",
+  "overrides": {
+    "claude": "#FFFFFF",
+    "promptBorder": "#FFFFFF",
+    "briefLabelYou": "#00FFCC",
+    "briefLabelClaude": "#00CCFF",
+    "text": "#00CCFF",
+    "error": "#FF8080",
+    "success": "#00FF66",
+    "warning": "#FFAA00",
+    "planMode": "#FFD600",
+    "ide": "#FFD600",
+    "userMessageBackground": "#000000",
+    "bashMessageBackgroundColor": "#000000",
+    "memoryBackgroundColor": "#000000",
+    "userMessageBackgroundHover": "#0f0f0f"
+  }
+}

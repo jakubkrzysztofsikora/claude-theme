@@ -1,0 +1,20 @@
+{
+  "name": "Mono Space",
+  "base": "light",
+  "overrides": {
+    "claude": "#1A1A1A",
+    "promptBorder": "#1A1A1A",
+    "briefLabelYou": "#4D4D4D",
+    "briefLabelClaude": "#1A1A1A",
+    "text": "#1A1A1A",
+    "error": "#8A8A8A",
+    "success": "#4D4D4D",
+    "warning": "#737373",
+    "planMode": "#737373",
+    "ide": "#737373",
+    "userMessageBackground": "#FFFFFF",
+    "bashMessageBackgroundColor": "#FFFFFF",
+    "memoryBackgroundColor": "#FFFFFF",
+    "userMessageBackgroundHover": "#ffffff"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Terracotta Pro",
+  "base": "light",
+  "overrides": {
+    "claude": "#FDF6F0",
+    "promptBorder": "#FDF6F0",
+    "briefLabelYou": "#8A5038",
+    "briefLabelClaude": "#9A4822",
+    "text": "#9A4822",
+    "error": "#9B3D3D",
+    "success": "#437046",
+    "warning": "#825A16",
+    "planMode": "#825A16",
+    "ide": "#825A16",
+    "userMessageBackground": "#3D2B1F",
+    "bashMessageBackgroundColor": "#3D2B1F",
+    "memoryBackgroundColor": "#3D2B1F",
+    "userMessageBackgroundHover": "#49382c"
+  }
+}
