@@ -106,8 +106,8 @@ Themes specify Google Fonts that are automatically loaded via the FontFace API. 
 ### Logo Replacement
 Replace the Claude logo with your own SVG. Logos are embedded directly into the extension and swapped at runtime. Support for light/dark variants and hover states.
 
-### Custom ASCII Banner for Claude CLI
-Theme authors can optionally set `terminal.bannerAscii` in `theme.json`. When a theme is applied, the CLI settings writer stores this banner in `~/.claude/settings.json` so Claude CLI integrations can render a custom themed banner.
+### Claude Code CLI Theming
+The `terminal` colors in `theme.json` are compiled into a real Claude Code custom theme. On `apply`, the tool writes `~/.claude/themes/<id>.json` (`{ name, base, overrides }`) and sets `"theme": "custom:<id>"` in `~/.claude/settings.json`. Restart Claude Code (or re-select via `/theme`) to load it; run `reset` to remove it.
 
 ### CSS Variable Overrides
 The entire theme is expressed as CSS custom properties (`--theme-bg-primary`, `--theme-accent`, etc.), making it easy to tweak individual values or layer additional styles on top.

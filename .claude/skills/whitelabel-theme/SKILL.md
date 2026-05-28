@@ -26,7 +26,7 @@ The theming system operates through a **bidirectional CLI browser bridge**:
 2. **The CLI compiler** (`build-theme.js`) reads theme files and generates a Chrome extension
 3. **The browser extension** injects CSS custom properties and custom fonts into Claude's web interface
 4. **Message passing** between the CLI and extension enables live theme switching
-5. **Terminal colors** are synced to `~/.claude/settings.json` for CLI theming
+5. **Terminal colors** are compiled into a Claude Code custom theme at `~/.claude/themes/<id>.json`, referenced by `"theme": "custom:<id>"` in `~/.claude/settings.json`
 
 ### Architecture Overview
 
@@ -44,7 +44,8 @@ Theme JSON  build-theme.js   Chrome Extension   Claude Web UI
     |            |<--message relay--|                  |
     |--validate->|                  |                  |
     |--preview-->| (http server)    |                  |
-    |--apply---->| (settings.json)  |                  |
+    |--apply---->| (themes/<id>.json + settings theme str) |
+    |--reset---->| (remove theme file + clear str)  |
 ```
 
 ### Data Flow
@@ -68,7 +69,7 @@ Applies a theme by compiling it and updating the active configuration.
 
 Behind the scenes:
 1. Validates the theme JSON against `themes/schema.json`
-2. Writes terminal color configuration to `~/.claude/settings.json`
+2. Compiles the `terminal`/`tokens.color` values into a Claude Code custom theme written to `~/.claude/themes/<id>.json` (`{ name, base, overrides }`) and sets `"theme": "custom:<id>"` (a string) in `~/.claude/settings.json`. Any previously-applied whitelabel theme file is pruned. Restart Claude Code or re-select via `/theme` to load it.
 3. Compiles and outputs the browser extension to `extension/`
 4. Displays instructions for loading the extension in Chrome
 
@@ -94,7 +95,7 @@ Starts a local HTTP server (default port 8765) that renders a mock Claude UI wit
 /reset-theme
 ```
 
-Removes the active theme and restores Claude's default styling. Clears the theme from `~/.claude/settings.json` and sends a reset message to any active browser extension.
+Removes the active theme and restores Claude's default styling. For the CLI, `build-theme.js reset` deletes the active `~/.claude/themes/<id>.json` and clears the `"theme"` string from `~/.claude/settings.json` (only when it points to a whitelabel `custom:` theme — built-in themes like `"dark"` are left untouched). For the browser, the extension popup's reset sends a reset message to any active tab.
 
 ## File Structure
 
