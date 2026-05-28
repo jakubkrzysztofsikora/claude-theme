@@ -284,12 +284,6 @@
         "successColor": {
           "$ref": "#/definitions/hexColor",
           "description": "Success message color"
-        },
-        "bannerAscii": {
-          "type": "string",
-          "description": "Optional ASCII art banner displayed by Claude CLI integrations when this theme is active",
-          "minLength": 1,
-          "maxLength": 4000
         }
       },
       "additionalProperties": false

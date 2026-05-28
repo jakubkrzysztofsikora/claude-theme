@@ -19,25 +19,58 @@
  *   fs, path, crypto, http, readline, url
  */
 
-const fs = require('fs');
-const path = require('path');
-const http = require('http');
-const crypto = require('crypto');
-const { URL } = require('url');
+const fs = require("fs");
+const path = require("path");
+const http = require("http");
+const crypto = require("crypto");
+const { URL } = require("url");
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const CWD = process.cwd();
-const HOME = process.env.HOME || process.env.USERPROFILE || '/tmp';
-const SCHEMA_PATH = path.resolve(__dirname, '../../../themes/schema.json');
-const THEMES_DIR = path.resolve(__dirname, '../../../themes');
-const EXTENSION_DIR = path.resolve(__dirname, '../../../extension');
-const SETTINGS_DIR = path.join(HOME, '.claude');
-const SETTINGS_PATH = path.join(SETTINGS_DIR, 'settings.json');
+const HOME = process.env.HOME || process.env.USERPROFILE || "/tmp";
+const SCHEMA_PATH = path.resolve(__dirname, "../../../themes/schema.json");
+const THEMES_DIR = path.resolve(__dirname, "../../../themes");
+const EXTENSION_DIR = path.resolve(__dirname, "../../../extension");
+const SETTINGS_DIR = path.join(HOME, ".claude");
+const SETTINGS_PATH = path.join(SETTINGS_DIR, "settings.json");
+// Claude Code custom themes live here, distinct from THEMES_DIR (the repo source dir).
+const CLAUDE_THEMES_DIR = path.join(SETTINGS_DIR, "themes");
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+// Theme slug shape (matches theme.id); guards filesystem ops against traversal.
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+// Valid Claude Code custom-theme override tokens, verified against the claude 2.1.153
+// binary. `messageActionsBackground` from the docs does NOT exist in that build and is
+// excluded. Re-verify (strings on the binary) when targeting a newer Claude Code.
+const CC_TOKENS = new Set([
+  "claude",
+  "promptBorder",
+  "briefLabelYou",
+  "briefLabelClaude",
+  "text",
+  "error",
+  "success",
+  "warning",
+  "planMode",
+  "ide",
+  "userMessageBackground",
+  "userMessageBackgroundHover",
+  "bashMessageBackgroundColor",
+  "memoryBackgroundColor",
+]);
+// Built-in bases a custom theme may extend, longest/most-specific first.
+const VALID_BASES = [
+  "dark-ansi",
+  "light-ansi",
+  "dark-daltonized",
+  "light-daltonized",
+  "light",
+  "dark",
+];
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -48,11 +81,11 @@ const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
  */
 function log(level, message) {
   const prefixes = {
-    info: '\x1b[36m[INFO]\x1b[0m',
-    ok: '\x1b[32m[OK]\x1b[0m',
-    warn: '\x1b[33m[WARN]\x1b[0m',
-    error: '\x1b[31m[ERROR]\x1b[0m',
-    step: '\x1b[35m[STEP]\x1b[0m',
+    info: "\x1b[36m[INFO]\x1b[0m",
+    ok: "\x1b[32m[OK]\x1b[0m",
+    warn: "\x1b[33m[WARN]\x1b[0m",
+    error: "\x1b[31m[ERROR]\x1b[0m",
+    step: "\x1b[35m[STEP]\x1b[0m",
   };
   const prefix = prefixes[level] || prefixes.info;
   // eslint-disable-next-line no-console
@@ -64,10 +97,10 @@ function log(level, message) {
  */
 function readJson(filePath) {
   try {
-    const raw = fs.readFileSync(filePath, 'utf8');
+    const raw = fs.readFileSync(filePath, "utf8");
     return JSON.parse(raw);
   } catch (err) {
-    log('error', `Failed to read or parse JSON at ${filePath}: ${err.message}`);
+    log("error", `Failed to read or parse JSON at ${filePath}: ${err.message}`);
     return null;
   }
 }
@@ -80,7 +113,98 @@ function writeJson(filePath, data) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+/**
+ * Write a JSON file atomically (temp + rename) so a crash mid-write cannot
+ * truncate the target. rename(2) is atomic within a filesystem.
+ */
+function writeJsonAtomic(filePath, data) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", "utf8");
+  fs.renameSync(tmp, filePath);
+}
+
+/**
+ * Lighten a #RRGGBB color toward white by `amt` (0..1). Schema guarantees the
+ * 6-digit hex form, so no short-form handling is needed.
+ */
+function lighten(hex, amt = 0.06) {
+  const n = hex.slice(1);
+  const channel = (i) => {
+    const v = parseInt(n.slice(i, i + 2), 16);
+    return Math.round(v + (255 - v) * amt);
+  };
+  return (
+    "#" +
+    [0, 2, 4].map((i) => channel(i).toString(16).padStart(2, "0")).join("")
+  );
+}
+
+/**
+ * Choose the built-in base preset a custom theme extends, derived from the
+ * theme's declared tags (never luminance — that would silently downgrade
+ * ansi/daltonized users). Defaults to "dark".
+ */
+function pickBase(theme) {
+  const tags = (theme.tags || []).map((t) => String(t).toLowerCase());
+  return VALID_BASES.find((b) => tags.includes(b)) || "dark";
+}
+
+/**
+ * Build a Claude Code custom-theme object ({ name, base, overrides }) from a
+ * whitelabel theme. Only tokens with a resolved source value are emitted, and
+ * every emitted key is asserted to be a real Claude Code token.
+ */
+function buildClaudeCodeTheme(theme) {
+  const t = theme.terminal || {};
+  const c = (theme.tokens && theme.tokens.color) || {};
+  const overrides = {};
+  const put = (key, val) => {
+    if (val) overrides[key] = val; // "#000000" is truthy → safe
+  };
+
+  const brand = t.promptColor || c.brandPrimary;
+  put("claude", brand);
+  put("promptBorder", brand);
+
+  put("briefLabelYou", t.userColor || c.userMessageText);
+
+  const assistant = t.assistantColor || c.textPrimary;
+  put("briefLabelClaude", assistant);
+  put("text", assistant);
+
+  put("error", t.errorColor || c.error);
+  put("success", t.successColor || c.success);
+  put("warning", c.warning);
+
+  const accent = t.systemColor || c.brandAccent;
+  put("planMode", accent);
+  put("ide", accent);
+
+  const bg = t.backgroundColor || c.background;
+  if (bg) {
+    put("userMessageBackground", bg);
+    put("bashMessageBackgroundColor", bg);
+    put("memoryBackgroundColor", bg);
+    put("userMessageBackgroundHover", lighten(bg));
+    // selectionBg intentionally NOT set to bg — equal values make selections invisible.
+  }
+
+  for (const key of Object.keys(overrides)) {
+    if (!CC_TOKENS.has(key)) {
+      throw new Error(
+        `Internal error: unknown Claude Code theme token "${key}"`,
+      );
+    }
+  }
+
+  return { name: theme.name, base: pickBase(theme), overrides };
 }
 
 /**
@@ -89,26 +213,29 @@ function writeJson(filePath, data) {
 function kebabCase(str) {
   return str
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 /**
  * Simple table formatter for CLI output.
  */
 function formatTable(rows, headers) {
-  if (!rows.length) return 'No data.';
+  if (!rows.length) return "No data.";
   const colCount = headers.length;
   const widths = headers.map((h, i) =>
-    Math.max(h.length, ...rows.map(r => String(r[i] || '').length))
+    Math.max(h.length, ...rows.map((r) => String(r[i] || "").length)),
   );
-  const sep = '+' + widths.map(w => '-'.repeat(w + 2)).join('+') + '+';
+  const sep = "+" + widths.map((w) => "-".repeat(w + 2)).join("+") + "+";
   const headerRow =
-    '| ' + headers.map((h, i) => h.padEnd(widths[i])).join(' | ') + ' |';
+    "| " + headers.map((h, i) => h.padEnd(widths[i])).join(" | ") + " |";
   const dataRows = rows.map(
-    r => '| ' + r.map((cell, i) => String(cell).padEnd(widths[i])).join(' | ') + ' |'
+    (r) =>
+      "| " +
+      r.map((cell, i) => String(cell).padEnd(widths[i])).join(" | ") +
+      " |",
   );
-  return [sep, headerRow, sep, ...dataRows, sep].join('\n');
+  return [sep, headerRow, sep, ...dataRows, sep].join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +246,20 @@ function formatTable(rows, headers) {
  * Validate a theme object against the embedded rules from schema.json.
  * Returns an array of error strings (empty if valid).
  */
-function validateTheme(theme, themeFilePath = 'unknown') {
+function validateTheme(theme, themeFilePath = "unknown") {
   const errors = [];
 
   // Required top-level fields
-  const required = ['name', 'id', 'version', 'author', 'description', 'license', 'preview', 'tokens'];
+  const required = [
+    "name",
+    "id",
+    "version",
+    "author",
+    "description",
+    "license",
+    "preview",
+    "tokens",
+  ];
   for (const field of required) {
     if (theme[field] === undefined) {
       errors.push(`Missing required field: "${field}"`);
@@ -136,7 +272,10 @@ function validateTheme(theme, themeFilePath = 'unknown') {
   }
 
   // version must be SemVer-ish
-  if (theme.version !== undefined && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)/.test(theme.version)) {
+  if (
+    theme.version !== undefined &&
+    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)/.test(theme.version)
+  ) {
     errors.push(`Invalid "version": must be SemVer, got "${theme.version}"`);
   }
 
@@ -151,42 +290,61 @@ function validateTheme(theme, themeFilePath = 'unknown') {
 
   // preview required sub-fields and hex validation
   if (theme.preview) {
-    const hasLegacyPreview = theme.preview.primary && theme.preview.secondary && theme.preview.text;
+    const hasLegacyPreview =
+      theme.preview.primary && theme.preview.secondary && theme.preview.text;
     const previewFields = hasLegacyPreview
-      ? ['background', 'surface', 'text', 'primary', 'secondary']
-      : ['background', 'surface', 'textPrimary', 'brandPrimary', 'userMessageText'];
+      ? ["background", "surface", "text", "primary", "secondary"]
+      : [
+          "background",
+          "surface",
+          "textPrimary",
+          "brandPrimary",
+          "userMessageText",
+        ];
     for (const field of previewFields) {
       const val = theme.preview[field];
       if (val === undefined) {
         errors.push(`Missing "preview.${field}"`);
       } else if (!HEX_COLOR_RE.test(val)) {
-        errors.push(`Invalid "preview.${field}": must be #RRGGBB, got "${val}"`);
+        errors.push(
+          `Invalid "preview.${field}": must be #RRGGBB, got "${val}"`,
+        );
       }
     }
   }
 
   // tokens.color required sub-fields and hex validation
   if (theme.tokens) {
-    if (typeof theme.tokens !== 'object' || theme.tokens === null) {
+    if (typeof theme.tokens !== "object" || theme.tokens === null) {
       errors.push(`"tokens" must be an object`);
     } else {
       const color = theme.tokens.color;
       if (!color) {
         errors.push(`Missing "tokens.color"`);
       } else {
-        const colorFields = ['brandPrimary', 'background', 'surface', 'textPrimary', 'userMessageText'];
+        const colorFields = [
+          "brandPrimary",
+          "background",
+          "surface",
+          "textPrimary",
+          "userMessageText",
+        ];
         for (const field of colorFields) {
           const val = color[field];
           if (val === undefined) {
             errors.push(`Missing "tokens.color.${field}"`);
           } else if (!HEX_COLOR_RE.test(val)) {
-            errors.push(`Invalid "tokens.color.${field}": must be #RRGGBB, got "${val}"`);
+            errors.push(
+              `Invalid "tokens.color.${field}": must be #RRGGBB, got "${val}"`,
+            );
           }
         }
         // Validate all remaining color values are valid hex
         for (const [key, val] of Object.entries(color)) {
           if (!HEX_COLOR_RE.test(val)) {
-            errors.push(`Invalid "tokens.color.${key}": must be #RRGGBB, got "${val}"`);
+            errors.push(
+              `Invalid "tokens.color.${key}": must be #RRGGBB, got "${val}"`,
+            );
           }
         }
       }
@@ -195,12 +353,24 @@ function validateTheme(theme, themeFilePath = 'unknown') {
       const typography = theme.tokens.typography;
       if (typography) {
         if (typography.fontUrl && !/^https?:\/\/.+/.test(typography.fontUrl)) {
-          errors.push(`Invalid "tokens.typography.fontUrl": must be HTTP(S) URL`);
+          errors.push(
+            `Invalid "tokens.typography.fontUrl": must be HTTP(S) URL`,
+          );
         }
-        if (typography.fontSizeBase && !/^\d+(\.\d+)?(px|rem|em)$/.test(typography.fontSizeBase)) {
-          errors.push(`Invalid "tokens.typography.fontSizeBase": "${typography.fontSizeBase}"`);
+        if (
+          typography.fontSizeBase &&
+          !/^\d+(\.\d+)?(px|rem|em)$/.test(typography.fontSizeBase)
+        ) {
+          errors.push(
+            `Invalid "tokens.typography.fontSizeBase": "${typography.fontSizeBase}"`,
+          );
         }
-        if (typography.lineHeight !== undefined && (typeof typography.lineHeight !== 'number' || typography.lineHeight < 1 || typography.lineHeight > 3)) {
+        if (
+          typography.lineHeight !== undefined &&
+          (typeof typography.lineHeight !== "number" ||
+            typography.lineHeight < 1 ||
+            typography.lineHeight > 3)
+        ) {
           errors.push(`Invalid "tokens.typography.lineHeight": must be 1-3`);
         }
       }
@@ -208,25 +378,21 @@ function validateTheme(theme, themeFilePath = 'unknown') {
       // Optional logo validation
       const logo = theme.tokens.logo;
       if (logo) {
-        if (!['svg', 'text', 'emoji'].includes(logo.type)) {
-          errors.push(`Invalid "tokens.logo.type": must be "svg", "text", or "emoji"`);
+        if (!["svg", "text", "emoji"].includes(logo.type)) {
+          errors.push(
+            `Invalid "tokens.logo.type": must be "svg", "text", or "emoji"`,
+          );
         }
-        if (logo.type === 'svg' && !logo.content) {
+        if (logo.type === "svg" && !logo.content) {
           errors.push(`"tokens.logo.content" is required when type is "svg"`);
         }
       }
     }
   }
 
-  // Optional terminal color validation
+  // Optional terminal color validation — every terminal.* value must be a hex color.
   if (theme.terminal) {
     for (const [key, val] of Object.entries(theme.terminal)) {
-      if (key === 'bannerAscii') {
-        if (typeof val !== 'string' || val.length === 0) {
-          errors.push(`Invalid "terminal.bannerAscii": must be a non-empty string`);
-        }
-        continue;
-      }
       if (!HEX_COLOR_RE.test(val)) {
         errors.push(`Invalid "terminal.${key}": must be #RRGGBB, got "${val}"`);
       }
@@ -249,27 +415,27 @@ function generateManifest(theme) {
     name: `Claude Theme: ${theme.name}`,
     version: theme.version,
     description: theme.description,
-    permissions: ['activeTab', 'scripting', 'storage'],
-    host_permissions: ['https://claude.ai/*', 'https://*.claude.ai/*'],
+    permissions: ["activeTab", "scripting", "storage"],
+    host_permissions: ["https://claude.ai/*", "https://*.claude.ai/*"],
     content_scripts: [
       {
-        matches: ['https://claude.ai/*', 'https://*.claude.ai/*'],
-        js: ['inject.js'],
-        css: ['styles.css'],
-        run_at: 'document_start',
+        matches: ["https://claude.ai/*", "https://*.claude.ai/*"],
+        js: ["inject.js"],
+        css: ["styles.css"],
+        run_at: "document_start",
       },
     ],
     background: {
-      service_worker: 'background.js',
+      service_worker: "background.js",
     },
     action: {
-      default_popup: 'popup.html',
+      default_popup: "popup.html",
       default_title: `Claude Theme: ${theme.name}`,
     },
     icons: {
-      16: 'icon16.png',
-      48: 'icon48.png',
-      128: 'icon128.png',
+      16: "icon16.png",
+      48: "icon48.png",
+      128: "icon128.png",
     },
   };
 }
@@ -678,14 +844,15 @@ body {
 function generateStylesCss(theme) {
   const c = theme.tokens?.color || {};
   const lines = [
-    '/* Claude Theme: ' + theme.name + ' */',
-    '/* This file provides fallback CSS variables for the content script */',
-    '',
-    ':root {',
+    "/* Claude Theme: " + theme.name + " */",
+    "/* This file provides fallback CSS variables for the content script */",
+    "",
+    ":root {",
   ];
 
   for (const [key, value] of Object.entries(c)) {
-    const cssKey = '--ct-' + key.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    const cssKey =
+      "--ct-" + key.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
     lines.push(`  ${cssKey}: ${value};`);
   }
 
@@ -697,7 +864,7 @@ function generateStylesCss(theme) {
     lines.push(`  --ct-assistant-message-bg: ${c.assistantMessageBackground};`);
   }
 
-  lines.push('}', '');
+  lines.push("}", "");
 
   // Basic element targeting for Claude's UI
   lines.push(`
@@ -711,7 +878,7 @@ function generateStylesCss(theme) {
 }
 `);
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /**
@@ -799,8 +966,8 @@ function generatePopupHtml(theme) {
       width: 280px;
       padding: 16px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: ${theme.tokens?.color?.background || '#0f0f23'};
-      color: ${theme.tokens?.color?.textPrimary || '#e0e0ff'};
+      background: ${theme.tokens?.color?.background || "#0f0f23"};
+      color: ${theme.tokens?.color?.textPrimary || "#e0e0ff"};
     }
     .header {
       display: flex;
@@ -808,13 +975,13 @@ function generatePopupHtml(theme) {
       gap: 10px;
       margin-bottom: 12px;
       padding-bottom: 12px;
-      border-bottom: 1px solid ${theme.tokens?.color?.border || '#333355'};
+      border-bottom: 1px solid ${theme.tokens?.color?.border || "#333355"};
     }
     .swatch {
       width: 32px;
       height: 32px;
       border-radius: 6px;
-      background: ${theme.tokens?.color?.brandPrimary || '#6366f1'};
+      background: ${theme.tokens?.color?.brandPrimary || "#6366f1"};
       flex-shrink: 0;
     }
     .title {
@@ -834,7 +1001,7 @@ function generatePopupHtml(theme) {
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      border: 2px solid ${theme.tokens?.color?.surface || '#1a1a2e'};
+      border: 2px solid ${theme.tokens?.color?.surface || "#1a1a2e"};
     }
     .actions { display: flex; flex-direction: column; gap: 8px; }
     button {
@@ -848,8 +1015,8 @@ function generatePopupHtml(theme) {
     }
     button:hover { opacity: 0.85; }
     .btn-primary {
-      background: ${theme.tokens?.color?.brandPrimary || '#6366f1'};
-      color: ${theme.tokens?.color?.userMessageText || '#ffffff'};
+      background: ${theme.tokens?.color?.brandPrimary || "#6366f1"};
+      color: ${theme.tokens?.color?.userMessageText || "#ffffff"};
     }
     .btn-danger {
       background: #dc2626;
@@ -872,11 +1039,11 @@ function generatePopupHtml(theme) {
     </div>
   </div>
   <div class="colors">
-    <div class="color-dot" style="background:${theme.preview?.brandPrimary || '#6366f1'}"></div>
-    <div class="color-dot" style="background:${theme.preview?.background || '#0f0f23'}"></div>
-    <div class="color-dot" style="background:${theme.preview?.surface || '#1a1a2e'}"></div>
-    <div class="color-dot" style="background:${theme.preview?.textPrimary || '#e0e0ff'}"></div>
-    <div class="color-dot" style="background:${theme.preview?.userMessageText || '#ffffff'}"></div>
+    <div class="color-dot" style="background:${theme.preview?.brandPrimary || "#6366f1"}"></div>
+    <div class="color-dot" style="background:${theme.preview?.background || "#0f0f23"}"></div>
+    <div class="color-dot" style="background:${theme.preview?.surface || "#1a1a2e"}"></div>
+    <div class="color-dot" style="background:${theme.preview?.textPrimary || "#e0e0ff"}"></div>
+    <div class="color-dot" style="background:${theme.preview?.userMessageText || "#ffffff"}"></div>
   </div>
   <div class="actions">
     <button class="btn-primary" id="refresh">Refresh Theme</button>
@@ -916,22 +1083,22 @@ function generatePopupHtml(theme) {
  * Command: compile — Generate extension files from a theme JSON file.
  */
 function cmdCompile(themeFilePath) {
-  log('step', `Compiling theme: ${themeFilePath}`);
+  log("step", `Compiling theme: ${themeFilePath}`);
 
   const theme = readJson(themeFilePath);
   if (!theme) {
-    log('error', `Cannot read or parse theme file: ${themeFilePath}`);
+    log("error", `Cannot read or parse theme file: ${themeFilePath}`);
     process.exit(1);
   }
 
   const errors = validateTheme(theme, themeFilePath);
   if (errors.length > 0) {
-    log('error', 'Validation failed:');
-    for (const err of errors) log('error', `  - ${err}`);
+    log("error", "Validation failed:");
+    for (const err of errors) log("error", `  - ${err}`);
     process.exit(1);
   }
 
-  log('ok', 'Theme validation passed');
+  log("ok", "Theme validation passed");
 
   // Ensure extension directory exists
   if (!fs.existsSync(EXTENSION_DIR)) {
@@ -940,20 +1107,20 @@ function cmdCompile(themeFilePath) {
 
   // Generate all extension files
   const files = {
-    'manifest.json': JSON.stringify(generateManifest(theme), null, 2) + '\n',
-    'inject.js': generateInjectJs(theme),
-    'styles.css': generateStylesCss(theme),
-    'background.js': generateBackgroundJs(theme),
-    'popup.html': generatePopupHtml(theme),
+    "manifest.json": JSON.stringify(generateManifest(theme), null, 2) + "\n",
+    "inject.js": generateInjectJs(theme),
+    "styles.css": generateStylesCss(theme),
+    "background.js": generateBackgroundJs(theme),
+    "popup.html": generatePopupHtml(theme),
   };
 
   for (const [filename, content] of Object.entries(files)) {
     const filePath = path.join(EXTENSION_DIR, filename);
-    fs.writeFileSync(filePath, content, 'utf8');
-    log('ok', `  Generated: ${filePath}`);
+    fs.writeFileSync(filePath, content, "utf8");
+    log("ok", `  Generated: ${filePath}`);
   }
 
-  log('info', `Extension compiled to: ${EXTENSION_DIR}`);
+  log("info", `Extension compiled to: ${EXTENSION_DIR}`);
   return files;
 }
 
@@ -961,62 +1128,94 @@ function cmdCompile(themeFilePath) {
  * Command: apply — Compile theme + update CLI settings + print instructions.
  */
 function cmdApply(themeFilePath) {
-  log('step', `Applying theme: ${themeFilePath}`);
+  log("step", `Applying theme: ${themeFilePath}`);
 
   const theme = readJson(themeFilePath);
   if (!theme) {
-    log('error', `Cannot read or parse theme file: ${themeFilePath}`);
+    log("error", `Cannot read or parse theme file: ${themeFilePath}`);
     process.exit(1);
   }
 
   // Validate
   const errors = validateTheme(theme, themeFilePath);
   if (errors.length > 0) {
-    log('error', 'Validation failed:');
-    for (const err of errors) log('error', `  - ${err}`);
+    log("error", "Validation failed:");
+    for (const err of errors) log("error", `  - ${err}`);
     process.exit(1);
   }
 
-  // Ensure settings directory exists
-  if (!fs.existsSync(SETTINGS_DIR)) {
-    fs.mkdirSync(SETTINGS_DIR, { recursive: true });
+  // Build the Claude Code custom theme first: this validates token names and
+  // throws before any file is written, so a bad mapping never leaves partial state.
+  const ccTheme = buildClaudeCodeTheme(theme);
+
+  // Ensure settings + themes directories exist
+  if (!fs.existsSync(CLAUDE_THEMES_DIR)) {
+    fs.mkdirSync(CLAUDE_THEMES_DIR, { recursive: true });
   }
 
-  // Read existing settings or start fresh
+  // Read existing settings. Abort rather than clobber a config we cannot parse —
+  // overwriting it would destroy the user's permissions/env/hooks/etc.
   let settings = {};
-  try {
-    settings = readJson(SETTINGS_PATH) || {};
-  } catch {
-    settings = {};
+  if (fs.existsSync(SETTINGS_PATH)) {
+    const parsed = readJson(SETTINGS_PATH);
+    if (parsed === null) {
+      log(
+        "error",
+        `Refusing to overwrite unparseable settings file: ${SETTINGS_PATH}`,
+      );
+      process.exit(1);
+    }
+    settings = parsed;
   }
 
-  // Update theme section while preserving user-defined keys
-  settings.theme = {
-    ...(settings.theme || {}),
-    activeThemeId: theme.id,
-    userMessageColor: theme.terminal?.userColor || theme.tokens?.color?.userMessageText || '#ffffff',
-    assistantMessageColor: theme.terminal?.assistantColor || theme.tokens?.color?.assistantMessageText || theme.tokens?.color?.textPrimary || '#e0e0ff',
-    backgroundColor: theme.terminal?.backgroundColor || theme.tokens?.color?.background || '#0f0f23',
-    promptColor: theme.terminal?.promptColor || theme.tokens?.color?.brandPrimary || '#6366f1',
-    bannerAscii: theme.terminal?.bannerAscii || '',
-  };
+  // Prune a previously-applied whitelabel theme file so ~/.claude/themes/ does
+  // not accumulate orphans. Only touch a slug we own and that differs from the new one.
+  const prev = settings.theme;
+  if (typeof prev === "string" && prev.startsWith("custom:")) {
+    const prevSlug = prev.slice("custom:".length);
+    if (SLUG_RE.test(prevSlug) && prevSlug !== theme.id) {
+      const prevFile = path.join(CLAUDE_THEMES_DIR, `${prevSlug}.json`);
+      if (fs.existsSync(prevFile)) {
+        fs.unlinkSync(prevFile);
+        log("info", `Pruned previous theme file: ${prevFile}`);
+      }
+    }
+  }
 
-  writeJson(SETTINGS_PATH, settings);
-  log('ok', `Updated settings: ${SETTINGS_PATH}`);
+  // Reference the custom theme by string (NOT an object) per Claude Code's contract.
+  settings.theme = `custom:${theme.id}`;
 
-  // Compile the extension
+  const themeFile = path.join(CLAUDE_THEMES_DIR, `${theme.id}.json`);
+  writeJsonAtomic(SETTINGS_PATH, settings);
+  writeJsonAtomic(themeFile, ccTheme);
+  log("ok", `Wrote custom theme: ${themeFile}`);
+  log("ok", `Set theme "custom:${theme.id}" in ${SETTINGS_PATH}`);
+
+  // Compile the extension (browser half)
   cmdCompile(themeFilePath);
 
   // Print success message
   // eslint-disable-next-line no-console
-  console.log('');
-  log('ok', `Theme "${theme.name}" (${theme.id}) applied successfully!`);
+  console.log("");
+  log("ok", `Theme "${theme.name}" (${theme.id}) applied successfully!`);
   // eslint-disable-next-line no-console
-  console.log('');
+  console.log("");
   // eslint-disable-next-line no-console
-  console.log('  Next steps:');
+  console.log("  Terminal (Claude Code CLI):");
   // eslint-disable-next-line no-console
-  console.log('    1. Open Chrome and navigate to chrome://extensions/');
+  console.log(
+    "    • Restart Claude Code (or re-pick via /theme) to load the new colors.",
+  );
+  // eslint-disable-next-line no-console
+  console.log(
+    `    • /theme will list it as "${theme.name}"; selecting another theme there overwrites this.`,
+  );
+  // eslint-disable-next-line no-console
+  console.log("");
+  // eslint-disable-next-line no-console
+  console.log("  Browser (claude.ai):");
+  // eslint-disable-next-line no-console
+  console.log("    1. Open Chrome and navigate to chrome://extensions/");
   // eslint-disable-next-line no-console
   console.log('    2. Enable "Developer mode" (toggle in top-right)');
   // eslint-disable-next-line no-console
@@ -1024,21 +1223,67 @@ function cmdApply(themeFilePath) {
   // eslint-disable-next-line no-console
   console.log(`       ${EXTENSION_DIR}`);
   // eslint-disable-next-line no-console
-  console.log('    4. Visit https://claude.ai to see your theme');
+  console.log("    4. Visit https://claude.ai to see your theme");
   // eslint-disable-next-line no-console
-  console.log('');
+  console.log("");
+}
+
+/**
+ * Command: reset — Remove the active whitelabel custom theme from the Claude
+ * Code CLI config (deletes ~/.claude/themes/<slug>.json and clears the theme
+ * string). Only touches themes we own (a "custom:" reference); built-in themes
+ * like "dark" are left untouched.
+ */
+function cmdReset() {
+  if (!fs.existsSync(SETTINGS_PATH)) {
+    log("info", "No settings.json found; nothing to reset.");
+    return;
+  }
+
+  const settings = readJson(SETTINGS_PATH);
+  if (settings === null) {
+    log(
+      "error",
+      `Refusing to modify unparseable settings file: ${SETTINGS_PATH}`,
+    );
+    process.exit(1);
+  }
+
+  const cur = settings.theme;
+  if (typeof cur !== "string" || !cur.startsWith("custom:")) {
+    log("info", "No whitelabel custom theme active; leaving theme unchanged.");
+    return;
+  }
+
+  const slug = cur.slice("custom:".length);
+  if (!SLUG_RE.test(slug)) {
+    log("error", `Refusing to act on unsafe theme slug: "${slug}"`);
+    process.exit(1);
+  }
+
+  const themeFile = path.join(CLAUDE_THEMES_DIR, `${slug}.json`);
+  if (fs.existsSync(themeFile)) {
+    fs.unlinkSync(themeFile);
+    log("ok", `Removed theme file: ${themeFile}`);
+  } else {
+    log("warn", `Theme file already absent: ${themeFile}`);
+  }
+
+  delete settings.theme;
+  writeJsonAtomic(SETTINGS_PATH, settings);
+  log("ok", "Cleared theme; Claude Code reverts to its default.");
 }
 
 /**
  * Command: list — Scan themes directory and print a formatted table.
  */
 function cmdList() {
-  log('step', `Scanning themes directory: ${THEMES_DIR}`);
+  log("step", `Scanning themes directory: ${THEMES_DIR}`);
 
   if (!fs.existsSync(THEMES_DIR)) {
-    log('warn', `Themes directory does not exist: ${THEMES_DIR}`);
+    log("warn", `Themes directory does not exist: ${THEMES_DIR}`);
     // eslint-disable-next-line no-console
-    console.log('No themes found.');
+    console.log("No themes found.");
     return;
   }
 
@@ -1048,26 +1293,26 @@ function cmdList() {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
 
-    const themeJsonPath = path.join(THEMES_DIR, entry.name, 'theme.json');
+    const themeJsonPath = path.join(THEMES_DIR, entry.name, "theme.json");
     const theme = readJson(themeJsonPath);
     if (!theme) continue;
 
     rows.push([
       theme.id || entry.name,
-      theme.name || '(unnamed)',
-      theme.author || '(unknown)',
-      (theme.tags || []).join(', ') || '-',
+      theme.name || "(unnamed)",
+      theme.author || "(unknown)",
+      (theme.tags || []).join(", ") || "-",
     ]);
   }
 
   if (rows.length === 0) {
     // eslint-disable-next-line no-console
-    console.log('No themes found.');
+    console.log("No themes found.");
     return;
   }
 
   // eslint-disable-next-line no-console
-  console.log(formatTable(rows, ['ID', 'Name', 'Author', 'Tags']));
+  console.log(formatTable(rows, ["ID", "Name", "Author", "Tags"]));
   // eslint-disable-next-line no-console
   console.log(`\n${rows.length} theme(s) found.`);
 }
@@ -1076,24 +1321,24 @@ function cmdList() {
  * Command: validate — Validate a theme JSON file against the schema.
  */
 function cmdValidate(themeFilePath) {
-  log('step', `Validating: ${themeFilePath}`);
+  log("step", `Validating: ${themeFilePath}`);
 
   const theme = readJson(themeFilePath);
   if (!theme) {
-    log('error', `Cannot read or parse JSON file: ${themeFilePath}`);
+    log("error", `Cannot read or parse JSON file: ${themeFilePath}`);
     process.exit(1);
   }
 
   const errors = validateTheme(theme, themeFilePath);
 
   if (errors.length === 0) {
-    log('ok', `Valid: "${theme.name}" (${theme.id})`);
-    log('info', `  Author: ${theme.author}`);
-    log('info', `  Version: ${theme.version}`);
-    log('info', `  Tags: ${(theme.tags || []).join(', ') || '(none)'}`);
+    log("ok", `Valid: "${theme.name}" (${theme.id})`);
+    log("info", `  Author: ${theme.author}`);
+    log("info", `  Version: ${theme.version}`);
+    log("info", `  Tags: ${(theme.tags || []).join(", ") || "(none)"}`);
   } else {
-    log('error', `Validation failed for: ${themeFilePath}`);
-    for (const err of errors) log('error', `  - ${err}`);
+    log("error", `Validation failed for: ${themeFilePath}`);
+    for (const err of errors) log("error", `  - ${err}`);
     process.exit(1);
   }
 }
@@ -1102,18 +1347,18 @@ function cmdValidate(themeFilePath) {
  * Command: preview — Start a local HTTP server with a themed mock UI.
  */
 function cmdPreview(themeFilePath, port = 8765) {
-  log('step', `Starting preview server for: ${themeFilePath}`);
+  log("step", `Starting preview server for: ${themeFilePath}`);
 
   const theme = readJson(themeFilePath);
   if (!theme) {
-    log('error', `Cannot read or parse theme file: ${themeFilePath}`);
+    log("error", `Cannot read or parse theme file: ${themeFilePath}`);
     process.exit(1);
   }
 
   const errors = validateTheme(theme, themeFilePath);
   if (errors.length > 0) {
-    log('error', 'Validation failed:');
-    for (const err of errors) log('error', `  - ${err}`);
+    log("error", "Validation failed:");
+    for (const err of errors) log("error", `  - ${err}`);
     process.exit(1);
   }
 
@@ -1122,8 +1367,11 @@ function cmdPreview(themeFilePath, port = 8765) {
 
   // Build CSS custom properties
   const cssVars = Object.entries(c)
-    .map(([k, v]) => `    --ct-${k.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}: ${v};`)
-    .join('\n');
+    .map(
+      ([k, v]) =>
+        `    --ct-${k.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()}: ${v};`,
+    )
+    .join("\n");
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1135,7 +1383,7 @@ function cmdPreview(themeFilePath, port = 8765) {
     :root {
 ${cssVars}
       --ct-font-family: ${typo.fontFamily || "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"};
-      --ct-font-size-base: ${typo.fontSizeBase || '16px'};
+      --ct-font-size-base: ${typo.fontSizeBase || "16px"};
       --ct-line-height: ${typo.lineHeight || 1.5};
     }
 
@@ -1305,7 +1553,7 @@ ${cssVars}
       font-size: 0.9em;
     }
   </style>
-  ${typo.fontUrl ? `<link rel="stylesheet" href="${typo.fontUrl}">` : ''}
+  ${typo.fontUrl ? `<link rel="stylesheet" href="${typo.fontUrl}">` : ""}
 </head>
 <body>
   <div class="color-strip">
@@ -1328,11 +1576,11 @@ ${cssVars}
       <div class="chat">
         <div class="message user">Hello! This is a preview of the <strong>${theme.name}</strong> theme. How does it look?</div>
         <div class="message assistant">
-          This is how assistant messages appear. The theme uses <code>${c.brandPrimary || '#6366f1'}</code> as the primary brand color.
-          ${theme.description ? `<br><br><em>${theme.description}</em>` : ''}
+          This is how assistant messages appear. The theme uses <code>${c.brandPrimary || "#6366f1"}</code> as the primary brand color.
+          ${theme.description ? `<br><br><em>${theme.description}</em>` : ""}
         </div>
         <div class="message user">Can I use custom fonts too?</div>
-        <div class="message assistant">Yes! This theme ${typo.fontFamily ? `uses <code>${typo.fontFamily}</code> for typography.` : 'uses the default system font stack.'} You can also add a custom logo and favicon.</div>
+        <div class="message assistant">Yes! This theme ${typo.fontFamily ? `uses <code>${typo.fontFamily}</code> for typography.` : "uses the default system font stack."} You can also add a custom logo and favicon.</div>
       </div>
       <div class="input-bar">
         <input class="input-field" placeholder="Type a message..." value="Preview message" readonly>
@@ -1344,13 +1592,13 @@ ${cssVars}
 </html>`;
 
   const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(html);
   });
 
   server.listen(port, () => {
-    log('ok', `Preview server running at http://localhost:${port}`);
-    log('info', 'Press Ctrl+C to stop');
+    log("ok", `Preview server running at http://localhost:${port}`);
+    log("info", "Press Ctrl+C to stop");
   });
 }
 
@@ -1360,10 +1608,10 @@ ${cssVars}
 function cmdInit(themeName) {
   const themeId = kebabCase(themeName);
   const themeDir = path.join(THEMES_DIR, themeId);
-  const themeJsonPath = path.join(themeDir, 'theme.json');
+  const themeJsonPath = path.join(themeDir, "theme.json");
 
   if (fs.existsSync(themeDir)) {
-    log('error', `Theme directory already exists: ${themeDir}`);
+    log("error", `Theme directory already exists: ${themeDir}`);
     process.exit(1);
   }
 
@@ -1372,66 +1620,79 @@ function cmdInit(themeName) {
   const template = {
     name: themeName,
     id: themeId,
-    version: '1.0.0',
-    author: 'Your Name',
+    version: "1.0.0",
+    author: "Your Name",
     description: `A custom Claude theme called ${themeName}`,
-    license: 'MIT',
-    tags: ['custom'],
+    license: "MIT",
+    tags: ["custom"],
     preview: {
-      background: '#0f0f23',
-      surface: '#1a1a2e',
-      textPrimary: '#e0e0ff',
-      brandPrimary: '#6366f1',
-      userMessageText: '#ffffff',
+      background: "#0f0f23",
+      surface: "#1a1a2e",
+      textPrimary: "#e0e0ff",
+      brandPrimary: "#6366f1",
+      userMessageText: "#ffffff",
     },
     tokens: {
       color: {
-        brandPrimary: '#6366f1',
-        brandSecondary: '#818cf8',
-        background: '#0f0f23',
-        surface: '#1a1a2e',
-        surfaceHover: '#252545',
-        textPrimary: '#e0e0ff',
-        textSecondary: '#a0a0cc',
-        textMuted: '#606088',
-        border: '#333355',
-        borderFocus: '#6366f1',
-        userMessageText: '#ffffff',
-        userMessageBackground: '#6366f1',
-        assistantMessageText: '#e0e0ff',
-        assistantMessageBackground: '#1a1a2e',
-        codeBackground: '#252545',
-        codeText: '#c8c8ff',
-        error: '#ef4444',
-        success: '#22c55e',
-        warning: '#f59e0b',
+        brandPrimary: "#6366f1",
+        brandSecondary: "#818cf8",
+        background: "#0f0f23",
+        surface: "#1a1a2e",
+        surfaceHover: "#252545",
+        textPrimary: "#e0e0ff",
+        textSecondary: "#a0a0cc",
+        textMuted: "#606088",
+        border: "#333355",
+        borderFocus: "#6366f1",
+        userMessageText: "#ffffff",
+        userMessageBackground: "#6366f1",
+        assistantMessageText: "#e0e0ff",
+        assistantMessageBackground: "#1a1a2e",
+        codeBackground: "#252545",
+        codeText: "#c8c8ff",
+        error: "#ef4444",
+        success: "#22c55e",
+        warning: "#f59e0b",
       },
       typography: {
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-        fontUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700',
-        fontSizeBase: '16px',
+        fontUrl:
+          "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700",
+        fontSizeBase: "16px",
         lineHeight: 1.6,
       },
     },
     terminal: {
-      userColor: '#6366f1',
-      assistantColor: '#e0e0ff',
-      backgroundColor: '#0f0f23',
-      promptColor: '#818cf8',
+      userColor: "#6366f1",
+      assistantColor: "#e0e0ff",
+      backgroundColor: "#0f0f23",
+      promptColor: "#818cf8",
     },
   };
 
   writeJson(themeJsonPath, template);
-  log('ok', `Created theme template: ${themeJsonPath}`);
+  log("ok", `Created theme template: ${themeJsonPath}`);
   // eslint-disable-next-line no-console
-  console.log('');
-  log('info', 'Next steps to customize your theme:');
-  log('info', `  1. Edit ${themeJsonPath}`);
-  log('info', '  2. Customize the color values (all #RRGGBB format)');
-  log('info', '  3. Optionally modify typography, logo, favicon, or terminal colors');
-  log('info', `  4. Validate: node .claude/skills/whitelabel-theme/build-theme.js validate ${themeJsonPath}`);
-  log('info', `  5. Preview:  node .claude/skills/whitelabel-theme/build-theme.js preview ${themeJsonPath}`);
-  log('info', `  6. Apply:    node .claude/skills/whitelabel-theme/build-theme.js apply ${themeJsonPath}`);
+  console.log("");
+  log("info", "Next steps to customize your theme:");
+  log("info", `  1. Edit ${themeJsonPath}`);
+  log("info", "  2. Customize the color values (all #RRGGBB format)");
+  log(
+    "info",
+    "  3. Optionally modify typography, logo, favicon, or terminal colors",
+  );
+  log(
+    "info",
+    `  4. Validate: node .claude/skills/whitelabel-theme/build-theme.js validate ${themeJsonPath}`,
+  );
+  log(
+    "info",
+    `  5. Preview:  node .claude/skills/whitelabel-theme/build-theme.js preview ${themeJsonPath}`,
+  );
+  log(
+    "info",
+    `  6. Apply:    node .claude/skills/whitelabel-theme/build-theme.js apply ${themeJsonPath}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1442,13 +1703,19 @@ function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (!command || command === 'help' || command === '--help' || command === '-h') {
+  if (
+    !command ||
+    command === "help" ||
+    command === "--help" ||
+    command === "-h"
+  ) {
     // eslint-disable-next-line no-console
     console.log(`
 Claude White-Label Theme Compiler — Zero-Dependency CLI
 
 Usage:
   node build-theme.js apply <theme-file>      Apply theme (compile + settings)
+  node build-theme.js reset                    Remove active CLI theme + restore default
   node build-theme.js compile <theme-file>    Compile theme to extension/
   node build-theme.js list                    List all available themes
   node build-theme.js validate <theme-file>   Validate a theme JSON file
@@ -1456,7 +1723,8 @@ Usage:
   node build-theme.js init <theme-name>       Create a new theme template
 
 Commands:
-  apply    — Compile extension + update ~/.claude/settings.json + print instructions
+  apply    — Write ~/.claude/themes/<id>.json + set theme:"custom:<id>" + compile extension
+  reset    — Delete the active custom theme file and clear the theme from settings.json
   compile  — Generate Chrome extension files in extension/
   list     — Scan themes/ directory and display theme table
   validate — Validate theme JSON against schema rules
@@ -1470,55 +1738,60 @@ Options:
   }
 
   switch (command) {
-    case 'apply': {
+    case "apply": {
       if (!args[1]) {
-        log('error', 'Usage: node build-theme.js apply <theme-file>');
+        log("error", "Usage: node build-theme.js apply <theme-file>");
         process.exit(1);
       }
       cmdApply(path.resolve(CWD, args[1]));
       break;
     }
 
-    case 'compile': {
+    case "reset": {
+      cmdReset();
+      break;
+    }
+
+    case "compile": {
       if (!args[1]) {
-        log('error', 'Usage: node build-theme.js compile <theme-file>');
+        log("error", "Usage: node build-theme.js compile <theme-file>");
         process.exit(1);
       }
       cmdCompile(path.resolve(CWD, args[1]));
       break;
     }
 
-    case 'list': {
+    case "list": {
       cmdList();
       break;
     }
 
-    case 'validate': {
+    case "validate": {
       if (!args[1]) {
-        log('error', 'Usage: node build-theme.js validate <theme-file>');
+        log("error", "Usage: node build-theme.js validate <theme-file>");
         process.exit(1);
       }
       cmdValidate(path.resolve(CWD, args[1]));
       break;
     }
 
-    case 'preview': {
+    case "preview": {
       if (!args[1]) {
-        log('error', 'Usage: node build-theme.js preview <theme-file> [port]');
+        log("error", "Usage: node build-theme.js preview <theme-file> [port]");
         process.exit(1);
       }
       const port = args[2] ? parseInt(args[2], 10) : 8765;
       if (isNaN(port) || port < 1 || port > 65535) {
-        log('error', `Invalid port: ${args[2]}`);
+        log("error", `Invalid port: ${args[2]}`);
         process.exit(1);
       }
       cmdPreview(path.resolve(CWD, args[1]), port);
       break;
     }
 
-    case 'init': {
+    case "init": {
       if (!args[1]) {
-        log('error', 'Usage: node build-theme.js init <theme-name>');
+        log("error", "Usage: node build-theme.js init <theme-name>");
         process.exit(1);
       }
       cmdInit(args[1]);
@@ -1526,8 +1799,8 @@ Options:
     }
 
     default: {
-      log('error', `Unknown command: "${command}"`);
-      log('info', 'Run with --help for usage information');
+      log("error", `Unknown command: "${command}"`);
+      log("info", "Run with --help for usage information");
       process.exit(1);
     }
   }
@@ -1548,4 +1821,10 @@ module.exports = {
   generatePopupHtml,
   kebabCase,
   formatTable,
+  buildClaudeCodeTheme,
+  lighten,
+  pickBase,
+  CC_TOKENS,
+  CLAUDE_THEMES_DIR,
+  THEMES_DIR,
 };
