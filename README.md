@@ -1,6 +1,14 @@
 # Claude White-Label Themes
 
-> **Zero-dependency theming system for Claude. Community-driven theme marketplace.**
+> **Personalize Claude everywhere — one theme restyles the claude.ai web UI, the
+> Claude Code CLI, and your Warp terminal. Author once, apply across all three.**
+
+**Why:** native Claude gives you only Light / Dark, and Claude Code's terminal UI colors
+are otherwise hard to fully control — so if you want a specific palette, accessible
+high-contrast, or a consistent look across the browser and your terminal, there's no
+built-in way. This is a zero-dependency CLI that compiles a single theme file into a
+browser extension + Claude Code theme + Warp theme, with 8 built-in themes and a
+`init`-to-author workflow.
 
 > ⚠️ **Unofficial.** This is an independent, community project — not affiliated with,
 > endorsed by, or supported by Anthropic. "Claude" is a trademark of Anthropic.
@@ -24,22 +32,40 @@
 
 ---
 
-## Theme Preview
+## See it
 
-Eight built-in themes, each crafted with attention to accessibility, contrast, and personality:
+<!--
+  SCREENSHOTS — TODO (owner): drop real images into docs/media/ and reference them here.
+  This tool's value is visual; placeholder color chips are not a substitute. Capture:
+    1. docs/media/web-before-after.png|gif — claude.ai default vs. a theme applied
+       (e.g. apply forest-canopy, screenshot the sidebar/chat; a GIF toggling is ideal).
+    2. docs/media/cli.gif — Claude Code terminal before/after, or an Asciinema cast
+       (asciinema rec docs/media/cli.cast) of `claude-theme apply neon-district`.
+    3. docs/media/warp.png — Warp window on a theme (e.g. forest-canopy / neon-district).
+  Then replace the placeholder lines below with: ![Themed claude.ai](docs/media/web-before-after.png)
+-->
 
-| Theme | Preview | Description | Tags |
-|-------|---------|-------------|------|
-| **Dark** | ![#0d1117](https://via.placeholder.com/16/0d1117/0d1117) `#0d1117` | Classic dark interface with deep blacks and subtle grays | `dark`, `default`, `high-contrast` |
-| **Light** | ![#ffffff](https://via.placeholder.com/16/ffffff/ffffff) `#ffffff` | Clean light interface for daytime productivity | `light`, `default`, `minimal` |
-| **High-Contrast** | ![#000000](https://via.placeholder.com/16/000000/000000) `#000000` | Maximum legibility, WCAG AAA compliant | `accessibility`, `wcag-aaa`, `dark` |
-| **Branded** | ![#1a237e](https://via.placeholder.com/16/1a237e/1a237e) `#1a237e` | Organization-ready with professional accent colors | `corporate`, `branded`, `professional` |
-| **Minimalist** | ![#fafafa](https://via.placeholder.com/16/fafafa/fafafa) `#fafafa` | Stripped-back, distraction-free interface | `minimal`, `clean`, `light` |
-| **Nature** | ![#1b5e20](https://via.placeholder.com/16/1b5e20/1b5e20) `#1b5e20` | Earthy greens and warm browns for a calming feel | `nature`, `green`, `organic` |
-| **Cyberpunk** | ![#ff00ff](https://via.placeholder.com/16/ff00ff/ff00ff) `#ff00ff` | Neon accents on deep purple-black backgrounds | `neon`, `dark`, `cyberpunk` |
-| **Warm-Neutral** | ![#3e2723](https://via.placeholder.com/16/3e2723/3e2723) `#3e2723` | Sepia-infused tones for reduced eye strain | `warm`, `sepia`, `comfortable` |
+> 📸 _Screenshots coming soon._ Until then, apply a theme and see for yourself:
+> `npx claude-whitelabel-themes apply forest-canopy` (browser + CLI + Warp).
 
-> Browse all themes in the [`themes/`](themes/) directory. Each theme is self-contained with its own `theme.json`, `logo.svg`, and `README.md`.
+## Built-in themes
+
+Eight themes spanning dark, light, high-contrast, and monochrome — each one self-contained
+in [`themes/<id>/theme.json`](themes/). Apply any by **id**: `claude-theme apply <id>`.
+
+| Theme (`id`) | Background | Accent | Tags |
+|---|---|---|---|
+| **Neon District** (`neon-district`) | `#0A0612` | `#FF007F` | dark, cyberpunk, neon |
+| **Midnight Forge** (`midnight-forge`) | `#0F1115` | `#0192F4` | dark, professional, ide-inspired |
+| **Forest Canopy** (`forest-canopy`) | `#0F1F17` | `#4ADE80` | dark, nature, green |
+| **A11y First** (`a11y-first`) | `#000000` | `#00CCFF` | high-contrast, accessibility, wcag-aaa |
+| **Clean Slate** (`clean-slate`) | `#FAFAF9` | `#2563EB` | light, minimal, professional |
+| **Parchment** (`parchment`) | `#F5F0E8` | `#A07818` | light, warm, sepia |
+| **Terracotta Pro** (`terracotta-pro`) | `#FDF6F0` | `#9A4822` | light, warm, earthy |
+| **Mono Space** (`mono-space`) | `#FFFFFF` | `#1A1A1A` | light, minimalist, monochrome |
+
+> Run `claude-theme list` for the live table, or `claude-theme preview <id>` to see a theme
+> in a mock UI before applying. Each theme dir has its own `theme.json` + `README.md`.
 
 ---
 
