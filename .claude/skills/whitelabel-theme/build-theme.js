@@ -2353,6 +2353,39 @@ function cmdInit(themeName) {
 // Main Entry Point
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve a theme argument to a theme.json path. Accepts (in order): an existing file
+ * path (relative to CWD), a bundled theme directory NAME (themes/<arg>/theme.json), or a
+ * bundled theme by its `id`. Falls back to the CWD-resolved path so the normal
+ * "cannot read" error fires for a genuinely missing theme. This lets `apply cyberpunk`
+ * / `apply neon-district` work (incl. for npx users with no local theme files), not just
+ * `apply ./path/to/theme.json`.
+ */
+function resolveThemeArg(arg) {
+  const asPath = path.resolve(CWD, arg);
+  if (fs.existsSync(asPath) && fs.statSync(asPath).isFile()) return asPath;
+  if (SLUG_RE.test(arg)) {
+    const byDir = path.join(THEMES_DIR, arg, "theme.json");
+    if (fs.existsSync(byDir)) return byDir;
+  }
+  try {
+    for (const e of fs.readdirSync(THEMES_DIR, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      const tj = path.join(THEMES_DIR, e.name, "theme.json");
+      if (!fs.existsSync(tj)) continue;
+      try {
+        const t = JSON.parse(fs.readFileSync(tj, "utf8"));
+        if (t && t.id === arg) return tj;
+      } catch {
+        /* skip unparseable bundled theme */
+      }
+    }
+  } catch {
+    /* THEMES_DIR missing */
+  }
+  return asPath;
+}
+
 function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -2397,7 +2430,7 @@ Options:
         log("error", "Usage: node build-theme.js apply <theme-file>");
         process.exit(1);
       }
-      cmdApply(path.resolve(CWD, args[1]));
+      cmdApply(resolveThemeArg(args[1]));
       break;
     }
 
@@ -2415,7 +2448,7 @@ Options:
         process.exit(1);
       }
       const outIdx = args.indexOf("--out");
-      cmdCompile(path.resolve(CWD, args[1]), {
+      cmdCompile(resolveThemeArg(args[1]), {
         emitGolden: args.includes("--emit-golden"),
         outDir: outIdx !== -1 ? args[outIdx + 1] : undefined,
       });
@@ -2432,7 +2465,7 @@ Options:
         log("error", "Usage: node build-theme.js validate <theme-file>");
         process.exit(1);
       }
-      cmdValidate(path.resolve(CWD, args[1]));
+      cmdValidate(resolveThemeArg(args[1]));
       break;
     }
 
@@ -2446,7 +2479,7 @@ Options:
         log("error", `Invalid port: ${args[2]}`);
         process.exit(1);
       }
-      cmdPreview(path.resolve(CWD, args[1]), port);
+      cmdPreview(resolveThemeArg(args[1]), port);
       break;
     }
 

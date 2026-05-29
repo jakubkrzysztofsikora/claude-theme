@@ -6,7 +6,7 @@ allowed-tools: Bash(npx:*)
 Reset to defaults by running:
 
 ```bash
-npx -y claude-whitelabel-themes reset
+npx -y claude-whitelabel-themes@^0.1 reset
 ```
 
 This removes the applied Claude Code custom theme and restores the prior Warp theme

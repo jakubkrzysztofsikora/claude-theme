@@ -7,7 +7,7 @@ allowed-tools: Bash(npx:*)
 Apply the white-label theme `$ARGUMENTS` by running the CLI:
 
 ```bash
-npx -y claude-whitelabel-themes apply "$ARGUMENTS"
+npx -y claude-whitelabel-themes@^0.1 apply "$ARGUMENTS"
 ```
 
 Then summarize what changed and the reload steps:

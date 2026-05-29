@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Zero-dependency white-label theming system for Claude. Community theme marketplace with browser extension + CLI.",
   "bin": {
-    "claude-theme": "bin/claude-theme.js"
+    "claude-theme": "bin/claude-theme.js",
+    "claude-whitelabel-themes": "bin/claude-theme.js"
   },
   "files": [
     "bin/claude-theme.js",

@@ -24,15 +24,15 @@ invoked with `npx` (no global install needed; `npx -y` fetches it on first use).
 Use the Bash tool to call the CLI, passing the user's argument through:
 
 ```bash
-npx -y claude-whitelabel-themes <command> [args]
+npx -y claude-whitelabel-themes@^0.1 <command> [args]
 ```
 
-For example, applying: `npx -y claude-whitelabel-themes apply "<id-or-path>"`.
+For example, applying: `npx -y claude-whitelabel-themes@^0.1 apply "<id-or-path>"`.
 
 After **apply**: tell the user to re-pick the theme via `/theme` in Claude Code (or
 restart) and to **reload/restart Warp**; for the browser, load the generated `extension/`
 directory via `chrome://extensions/` → Load unpacked. After **reset**: the prior theme is
-restored. Building a brand-new theme uses `npx -y claude-whitelabel-themes init "<Name>"`.
+restored. Building a brand-new theme uses `npx -y claude-whitelabel-themes@^0.1 init "<Name>"`.
 
 ## Notes
 

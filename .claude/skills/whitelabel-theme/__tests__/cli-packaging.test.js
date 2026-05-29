@@ -137,3 +137,13 @@ test("npm pack tarball excludes proprietary/dev/build paths", () => {
     assert.ok(files.includes(need), `missing required file: ${need}`);
   }
 });
+
+// Theme-arg resolution: apply/validate/etc accept a bundled theme by DIR NAME or by `id`,
+// not only a file path — so `apply cyberpunk` / `apply neon-district` work (incl. npx users
+// who have no local theme files).
+test("theme arg resolves by dir name and by id, not just path", () => {
+  const cwd = tmp();
+  assert.equal(run(cwd, ["validate", "cyberpunk"]).status, 0, "by dir name");
+  assert.equal(run(cwd, ["validate", "neon-district"]).status, 0, "by theme id");
+  assert.notEqual(run(cwd, ["validate", "no-such-theme"]).status, 0, "bogus id still errors");
+});

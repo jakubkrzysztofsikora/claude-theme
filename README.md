@@ -330,14 +330,35 @@ All commands are available via `node .claude/skills/whitelabel-theme/build-theme
 
 | Command | Description | Usage |
 |---------|-------------|-------|
-| `apply` | Apply a theme (compile + notify) | `apply <theme.json>` |
-| `compile` | Compile theme to extension/ | `compile <theme.json>` |
-| `list` | List all available themes | `list [themes-dir]` |
-| `validate` | Validate a theme.json file | `validate <theme.json>` |
-| `preview` | Preview theme in browser | `preview <theme.json>` |
-| `init` | Scaffold a new theme | `init <theme-name>` |
+| `apply` | Apply a theme (compile + notify) | `apply <id\|theme.json>` |
+| `compile` | Compile theme to `./extension` | `compile <id\|theme.json> [--out <dir>]` |
+| `list` | List all available themes | `list` |
+| `validate` | Validate a theme.json file | `validate <id\|theme.json>` |
+| `preview` | Preview theme in browser | `preview <id\|theme.json> [port]` |
+| `init` | Scaffold a new theme (in `./themes`) | `init <theme-name>` |
+
+The theme argument accepts a built-in theme id or directory name (e.g. `cyberpunk`,
+`neon-district`) **or** a path to a `theme.json`. The browser extension is written to
+`./extension` in the current directory (override with `compile --out <dir>`).
 
 See [docs/API_REFERENCE.md](docs/API_REFERENCE.md) for full API documentation.
+
+---
+
+## Claude Code plugin
+
+This repo is also a self-hosted **Claude Code plugin marketplace**. Once the npm package
+is published, add it inside Claude Code (v2.1.154+):
+
+```text
+/plugin marketplace add jakubkrzysztofsikora/claude-theme
+/plugin install whitelabel-theme
+```
+
+That installs the `/apply-theme`, `/list-themes`, `/preview-theme`, and `/reset-theme`
+slash commands. The commands shell out to the published `claude-whitelabel-themes` npm
+package via `npx`, so they require **Node.js ≥ 18** and the package to be **published to
+npm first**. (Unofficial — not affiliated with Anthropic.)
 
 ---
 
