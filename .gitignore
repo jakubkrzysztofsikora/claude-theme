@@ -28,3 +28,6 @@ Thumbs.db
 # Local/proprietary theme working files (never commit or publish)
 circit.theme.local.json
 *.local.json
+
+# Agent git worktrees (never commit)
+.claude/worktrees/

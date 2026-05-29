@@ -2557,6 +2557,63 @@ function findOnPath(name) {
  * binary if one is on PATH; otherwise print a notice and exit 0 (so the command
  * is safe to run anywhere, including CI without Claude Code installed).
  */
+/**
+ * Command: convert — deterministically convert a theme to a known terminal client's
+ * theme format (iTerm2 / Alacritty / Kitty / Windows Terminal). Uses the optional,
+ * zero-dependency `convert/` scaffold (NOT shipped to npm); unknown clients print a
+ * notice for the future opt-in, model-augmented path.
+ */
+function cmdConvert(client, themeArg) {
+  let conv, registry;
+  try {
+    conv = require("../../../convert/schema-map.js");
+    registry = require("../../../convert/registry.json");
+  } catch {
+    log(
+      "error",
+      "Conversion module not available (the `convert/` scaffold is dev-only and not part of the published package).",
+    );
+    process.exit(1);
+  }
+  const clientEntry = registry.clients && registry.clients[client];
+  if (!clientEntry) {
+    log(
+      "warn",
+      `Unknown client "${client}" — the model-augmented path (comb the web for its schema) is not yet available (opt-in, coming).`,
+    );
+    log(
+      "info",
+      `Known clients: ${Object.keys(registry.clients || {}).join(", ")}`,
+    );
+    process.exit(0);
+  }
+  const theme = readJson(resolveThemeArg(themeArg));
+  if (!theme) {
+    log("error", `Cannot read or parse theme: ${themeArg}`);
+    process.exit(1);
+  }
+  const errors = validateTheme(theme, themeArg);
+  if (errors.length > 0) {
+    log("error", "Validation failed:");
+    for (const e of errors) log("error", `  - ${e}`);
+    process.exit(1);
+  }
+  const cc = buildClaudeCodeTheme(theme);
+  const { text, mappings, format } = conv.convert({
+    sourceEntry: registry.sources["claude-code"],
+    colors: cc.overrides,
+    clientEntry,
+    themeName: theme.name,
+  });
+  const low = mappings.filter((m) => m.confidence < 0.5).length;
+  log(
+    "ok",
+    `Converted "${theme.name}" → ${client} (${format}); ${mappings.length} keys mapped${low ? `, ${low} low-confidence` : ""}.`,
+  );
+  // eslint-disable-next-line no-console
+  console.log(text);
+}
+
 function cmdDoctor() {
   const bin = findOnPath("claude");
   if (!bin) {
@@ -2574,7 +2631,10 @@ function cmdDoctor() {
 
   log("step", `Found claude binary: ${bin}`);
   log("info", "Checking CC_TOKENS against the live build for token drift...");
-  const script = path.resolve(__dirname, "../../../scripts/extract-cc-tokens.js");
+  const script = path.resolve(
+    __dirname,
+    "../../../scripts/extract-cc-tokens.js",
+  );
   if (!fs.existsSync(script)) {
     // scripts/ is not shipped in the npm tarball, so a published install cannot
     // run the live check. Treat as a soft skip rather than an error.
@@ -2695,6 +2755,27 @@ Options:
         process.exit(1);
       }
       cmdInit(args[1]);
+      break;
+    }
+
+    case "convert": {
+      const ci = args.indexOf("--client");
+      const client = ci !== -1 ? args[ci + 1] : undefined;
+      // The theme arg is the first positional that isn't the command, the flag, or its value.
+      const themeArg = args
+        .slice(1)
+        .find(
+          (a, i) =>
+            a !== "--client" && args[args.indexOf(a) - 1] !== "--client",
+        );
+      if (!client || !themeArg) {
+        log(
+          "error",
+          "Usage: node build-theme.js convert --client <name> <theme-id-or-path>",
+        );
+        process.exit(1);
+      }
+      cmdConvert(client, themeArg);
       break;
     }
 
