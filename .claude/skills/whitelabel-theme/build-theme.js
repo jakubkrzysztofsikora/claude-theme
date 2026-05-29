@@ -24,6 +24,7 @@ const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
 const { URL } = require("url");
+const { deriveTokens } = require("./cli-derive.js");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -40,8 +41,16 @@ const SETTINGS_PATH = path.join(SETTINGS_DIR, "settings.json");
 const CLAUDE_THEMES_DIR = path.join(SETTINGS_DIR, "themes");
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+// Hex in colorValue form: 3- or 6-digit. (tokens.color stays 6-digit only.)
+const HEX_ANY_RE = /^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
 // Theme slug shape (matches theme.id); guards filesystem ops against traversal.
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Object keys that must never be accepted from theme JSON (prototype pollution).
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+// Resource caps for untrusted (marketplace) theme files.
+const MAX_THEME_BYTES = 512 * 1024;
+const MAX_COLOR_KEYS = 200;
+const MAX_OVERRIDE_KEYS = 200;
 
 // Valid Claude Code custom-theme override tokens, verified against the claude 2.1.154
 // binary via `scripts/extract-cc-tokens.js` (quoted-string occurrence > 0). Tokens from
@@ -174,12 +183,59 @@ function log(level, message) {
  */
 function readJson(filePath) {
   try {
+    const stat = fs.statSync(filePath);
+    if (stat.size > MAX_THEME_BYTES) {
+      log(
+        "error",
+        `File too large (${stat.size} bytes > ${MAX_THEME_BYTES} cap): ${filePath}`,
+      );
+      return null;
+    }
     const raw = fs.readFileSync(filePath, "utf8");
     return JSON.parse(raw);
   } catch (err) {
     log("error", `Failed to read or parse JSON at ${filePath}: ${err.message}`);
     return null;
   }
+}
+
+/**
+ * Validate a colorValue: hex (#rgb/#rrggbb), rgb(r,g,b) with 0-255 channels,
+ * ansi256(n) with 0-255, or ansi:<name> from the ANSI_NAMES allowlist. Each
+ * form is fully anchored, so a value carrying `;`, `}`, `url(...)`, newlines,
+ * etc. matches no form and is rejected — no CSS/JSON smuggling downstream.
+ */
+function isColorValue(val) {
+  if (typeof val !== "string") return false;
+  if (HEX_ANY_RE.test(val)) return true;
+  const compact = val.replace(/\s+/g, "");
+  const rgb = /^rgb\((\d{1,3}),(\d{1,3}),(\d{1,3})\)$/.exec(compact);
+  if (rgb) return rgb.slice(1).every((n) => Number(n) <= 255);
+  const a256 = /^ansi256\((\d{1,3})\)$/.exec(compact);
+  if (a256) return Number(a256[1]) <= 255;
+  const aname = /^ansi:([a-zA-Z]+)$/.exec(val);
+  if (aname) return ANSI_NAMES.has(aname[1]);
+  return false;
+}
+
+/**
+ * Escape a string for safe interpolation into generated HTML (text or attribute
+ * context). Applied at every HTML sink so untrusted theme fields can never
+ * inject markup, independent of input validation (defence in depth).
+ */
+function htmlEscape(s) {
+  return String(s).replace(
+    /[&<>"'`]/g,
+    (ch) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+        "`": "&#96;",
+      })[ch],
+  );
 }
 
 /**
@@ -234,43 +290,111 @@ function pickBase(theme) {
 }
 
 /**
+ * Resolve the hex palette deriveTokens() needs from tokens.color. Inputs are
+ * hex-only (validateTheme guarantees the required fields are #RRGGBB when
+ * deriveAll is set), so ansi/rgb forms never reach the colour math.
+ */
+function buildPalette(theme) {
+  const c = (theme.tokens && theme.tokens.color) || {};
+  return {
+    bg: c.background,
+    text: c.textPrimary,
+    brand: c.brandPrimary,
+    accent: c.brandAccent, // optional → deriveTokens defaults to brand
+    success: c.success,
+    error: c.error,
+    warning: c.warning,
+    userText: c.userMessageText,
+  };
+}
+
+/**
  * Build a Claude Code custom-theme object ({ name, base, overrides }) from a
- * whitelabel theme. Only tokens with a resolved source value are emitted, and
- * every emitted key is asserted to be a real Claude Code token.
+ * whitelabel theme, in three layers (lowest → highest priority):
+ *   1. opt-in full derivation from the palette (only when terminal.deriveAll)
+ *   2. the friendly terminal.* / tokens.color mappings (default behaviour)
+ *   3. the raw terminal.overrides map
+ * Every emitted key is asserted to be a real Claude Code token.
+ *
+ * Validation (validateTheme) must run first: it enforces colorValue formats,
+ * the override-key allowlist, prototype-pollution rejection, and the palette
+ * presence/hex preconditions deriveTokens relies on.
  */
 function buildClaudeCodeTheme(theme) {
   const t = theme.terminal || {};
   const c = (theme.tokens && theme.tokens.color) || {};
-  const overrides = {};
+  // null-proto so a stray "__proto__"/"constructor" assignment cannot pollute.
+  const overrides = Object.create(null);
   const put = (key, val) => {
     if (val) overrides[key] = val; // "#000000" is truthy → safe
   };
 
-  const brand = t.promptColor || c.brandPrimary;
+  const base =
+    t.base && VALID_BASES.includes(t.base) ? t.base : pickBase(theme);
+
+  // Layer 1 — opt-in derivation of the full token set from the hex palette.
+  if (t.deriveAll === true) {
+    const derived = deriveTokens(buildPalette(theme), { base });
+    for (const [key, val] of Object.entries(derived)) put(key, val);
+  }
+
+  // Layer 2 — friendly mappings (the default, back-compatible behaviour).
+  // Under deriveAll, only EXPLICIT terminal.* fields override the derived set;
+  // the tokens.color fallbacks are suppressed so derivation's (contrast-floored,
+  // shimmer-aware) values are not clobbered by the simpler mapping. When not
+  // deriving, fb() === (terminalVal || colorVal), identical to the old behaviour.
+  const deriving = t.deriveAll === true;
+  const fb = (terminalVal, colorVal) =>
+    terminalVal || (deriving ? undefined : colorVal);
+
+  const brand = fb(t.promptColor, c.brandPrimary);
   put("claude", brand);
   put("promptBorder", brand);
 
-  put("briefLabelYou", t.userColor || c.userMessageText);
+  put("briefLabelYou", fb(t.userColor, c.userMessageText));
 
-  const assistant = t.assistantColor || c.textPrimary;
+  const assistant = fb(t.assistantColor, c.textPrimary);
   put("briefLabelClaude", assistant);
   put("text", assistant);
 
-  put("error", t.errorColor || c.error);
-  put("success", t.successColor || c.success);
-  put("warning", c.warning);
+  put("error", fb(t.errorColor, c.error));
+  put("success", fb(t.successColor, c.success));
+  put("warning", deriving ? undefined : c.warning);
 
-  const accent = t.systemColor || c.brandAccent;
+  const accent = fb(t.systemColor, c.brandAccent);
   put("planMode", accent);
   put("ide", accent);
 
-  const bg = t.backgroundColor || c.background;
+  const bg = fb(t.backgroundColor, c.background);
   if (bg) {
     put("userMessageBackground", bg);
     put("bashMessageBackgroundColor", bg);
     put("memoryBackgroundColor", bg);
     put("userMessageBackgroundHover", lighten(bg));
-    // selectionBg intentionally NOT set to bg — equal values make selections invisible.
+  }
+
+  // Layer 3 — raw overrides win. Keys are re-checked here (defence in depth):
+  // forbidden keys skipped, unknown tokens skipped (validateTheme already errors).
+  if (t.overrides && typeof t.overrides === "object") {
+    for (const key of Object.keys(t.overrides)) {
+      if (FORBIDDEN_KEYS.has(key)) continue;
+      if (CC_TOKENS.has(key)) overrides[key] = t.overrides[key];
+    }
+  }
+
+  // Warn (not error) if ansi values are used without an *-ansi base — they
+  // won't follow the terminal palette and may render oddly.
+  if (!base.endsWith("-ansi")) {
+    for (const val of Object.values(overrides)) {
+      if (typeof val === "string" && val.startsWith("ansi")) {
+        log(
+          "warn",
+          `Theme uses ansi color values but base "${base}" is not an *-ansi base; ` +
+            `colors may not follow the terminal palette.`,
+        );
+        break;
+      }
+    }
   }
 
   for (const key of Object.keys(overrides)) {
@@ -281,7 +405,9 @@ function buildClaudeCodeTheme(theme) {
     }
   }
 
-  return { name: theme.name, base: pickBase(theme), overrides };
+  // Spread into a plain object: null-proto would fail deepStrictEqual in tests
+  // and JSON output should be an ordinary object.
+  return { name: theme.name, base, overrides: { ...overrides } };
 }
 
 /**
@@ -350,10 +476,50 @@ function validateTheme(theme, themeFilePath = "unknown") {
     }
   }
 
-  // version must be SemVer-ish
+  // name is interpolated into generated extension JS/HTML/CSS. Reject characters
+  // that could break out of a string/markup context (defence at the boundary so
+  // no downstream generator can be injected), plus a length cap.
+  if (theme.name !== undefined) {
+    if (typeof theme.name !== "string") {
+      errors.push(`"name" must be a string`);
+    } else if (theme.name.length < 1 || theme.name.length > 100) {
+      errors.push(`"name" must be 1-100 characters`);
+    } else if (/[<>"'`${};\\*/]/.test(theme.name)) {
+      errors.push(
+        `Invalid "name": must not contain < > " ' \` $ { } ; \\ or other breakout characters`,
+      );
+    }
+  }
+
+  // description is interpolated unescaped into the preview HTML (text context).
+  // Block the angle brackets that would allow a tag/script; prose punctuation is fine.
+  if (theme.description !== undefined) {
+    if (typeof theme.description !== "string") {
+      errors.push(`"description" must be a string`);
+    } else if (theme.description.length < 1 || theme.description.length > 512) {
+      errors.push(`"description" must be 1-512 characters`);
+    } else if (/[<>]/.test(theme.description)) {
+      errors.push(`Invalid "description": must not contain < or >`);
+    }
+  }
+
+  // author is interpolated into generated HTML; htmlEscape covers it, but keep a
+  // type/length bound for sane output.
+  if (theme.author !== undefined) {
+    if (typeof theme.author !== "string") {
+      errors.push(`"author" must be a string`);
+    } else if (theme.author.length < 1 || theme.author.length > 100) {
+      errors.push(`"author" must be 1-100 characters`);
+    }
+  }
+
+  // version must be SemVer (anchored end — an unanchored prefix match let
+  // trailing markup like `1.0.0"><img>` through to the HTML sinks).
   if (
     theme.version !== undefined &&
-    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)/.test(theme.version)
+    !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(
+      theme.version,
+    )
   ) {
     errors.push(`Invalid "version": must be SemVer, got "${theme.version}"`);
   }
@@ -418,6 +584,13 @@ function validateTheme(theme, themeFilePath = "unknown") {
             );
           }
         }
+        // Cap key count (untrusted themes get re-serialized into the extension).
+        const colorKeys = Object.keys(color);
+        if (colorKeys.length > MAX_COLOR_KEYS) {
+          errors.push(
+            `"tokens.color" has too many keys (${colorKeys.length} > ${MAX_COLOR_KEYS})`,
+          );
+        }
         // Validate all remaining color values are valid hex
         for (const [key, val] of Object.entries(color)) {
           if (!HEX_COLOR_RE.test(val)) {
@@ -434,6 +607,19 @@ function validateTheme(theme, themeFilePath = "unknown") {
         if (typography.fontUrl && !/^https?:\/\/.+/.test(typography.fontUrl)) {
           errors.push(
             `Invalid "tokens.typography.fontUrl": must be HTTP(S) URL`,
+          );
+        }
+        // fontFamily is interpolated into generated CSS (a CSS custom property
+        // value). Allow only font-name characters so a value like
+        // "Inter; } body{...}" cannot break out of the declaration.
+        if (
+          typography.fontFamily !== undefined &&
+          (typeof typography.fontFamily !== "string" ||
+            typography.fontFamily.length > 200 ||
+            !/^[A-Za-z0-9 ,'"-]+$/.test(typography.fontFamily))
+        ) {
+          errors.push(
+            `Invalid "tokens.typography.fontFamily": only letters, digits, spaces, comma, quotes, hyphen allowed`,
           );
         }
         if (
@@ -469,11 +655,89 @@ function validateTheme(theme, themeFilePath = "unknown") {
     }
   }
 
-  // Optional terminal color validation — every terminal.* value must be a hex color.
-  if (theme.terminal) {
-    for (const [key, val] of Object.entries(theme.terminal)) {
-      if (!HEX_COLOR_RE.test(val)) {
-        errors.push(`Invalid "terminal.${key}": must be #RRGGBB, got "${val}"`);
+  // Optional terminal validation — shape-aware. The JSON Schema is documentation
+  // only (never loaded at runtime), so every constraint is enforced here.
+  if (theme.terminal !== undefined) {
+    const term = theme.terminal;
+    if (typeof term !== "object" || term === null || Array.isArray(term)) {
+      errors.push(`"terminal" must be an object`);
+    } else {
+      const COLOR_FIELDS = new Set([
+        "userColor",
+        "assistantColor",
+        "backgroundColor",
+        "promptColor",
+        "errorColor",
+        "successColor",
+        "systemColor",
+      ]);
+      const ALLOWED = new Set([
+        ...COLOR_FIELDS,
+        "base",
+        "deriveAll",
+        "overrides",
+      ]);
+
+      for (const key of Object.keys(term)) {
+        if (!ALLOWED.has(key)) {
+          errors.push(`Unknown "terminal.${key}"`);
+        }
+      }
+      for (const field of COLOR_FIELDS) {
+        if (term[field] !== undefined && !isColorValue(term[field])) {
+          errors.push(
+            `Invalid "terminal.${field}": not a valid color value, got "${term[field]}"`,
+          );
+        }
+      }
+      if (term.base !== undefined && !VALID_BASES.includes(term.base)) {
+        errors.push(
+          `Invalid "terminal.base": must be one of ${VALID_BASES.join(", ")}`,
+        );
+      }
+      if (term.deriveAll !== undefined && typeof term.deriveAll !== "boolean") {
+        errors.push(`"terminal.deriveAll" must be a boolean`);
+      }
+      if (term.overrides !== undefined) {
+        const ov = term.overrides;
+        if (typeof ov !== "object" || ov === null || Array.isArray(ov)) {
+          errors.push(`"terminal.overrides" must be an object`);
+        } else {
+          const ovKeys = Object.keys(ov);
+          if (ovKeys.length > MAX_OVERRIDE_KEYS) {
+            errors.push(
+              `"terminal.overrides" has too many keys (${ovKeys.length} > ${MAX_OVERRIDE_KEYS})`,
+            );
+          }
+          for (const key of ovKeys) {
+            if (FORBIDDEN_KEYS.has(key)) {
+              errors.push(`Illegal "terminal.overrides" key: "${key}"`);
+              continue; // never read the value of a pollution key
+            }
+            if (!CC_TOKENS.has(key)) {
+              errors.push(`Unknown override token "terminal.overrides.${key}"`);
+              continue;
+            }
+            if (!isColorValue(ov[key])) {
+              errors.push(
+                `Invalid "terminal.overrides.${key}": not a valid color value, got "${ov[key]}"`,
+              );
+            }
+          }
+        }
+      }
+      // deriveAll needs a complete hex palette — the colour math throws on a
+      // missing/non-hex source. Required base palette fields are checked above;
+      // success/error/warning are not otherwise required, so enforce them here.
+      if (term.deriveAll === true) {
+        const color = (theme.tokens && theme.tokens.color) || {};
+        for (const field of ["success", "error", "warning"]) {
+          if (!HEX_COLOR_RE.test(color[field] || "")) {
+            errors.push(
+              `"terminal.deriveAll" requires hex "tokens.color.${field}"`,
+            );
+          }
+        }
       }
     }
   }
@@ -977,7 +1241,7 @@ const THEME_ID = '${theme.id}';
 const activeTabs = new Set();
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.set({ activeTheme: THEME_ID, themeName: '${theme.name}' });
+  chrome.storage.local.set({ activeTheme: THEME_ID, themeName: ${JSON.stringify(theme.name)} });
 });
 
 // Listen for messages from popup and internal extension components only
@@ -988,7 +1252,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 function handleMessage(request, sender, sendResponse) {
   if (request.action === 'GET_THEME') {
-    sendResponse({ themeId: THEME_ID, themeName: '${theme.name}' });
+    sendResponse({ themeId: THEME_ID, themeName: ${JSON.stringify(theme.name)} });
     return;
   }
 
@@ -1038,7 +1302,7 @@ function generatePopupHtml(theme) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Claude Theme: ${theme.name}</title>
+  <title>Claude Theme: ${htmlEscape(theme.name)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -1113,8 +1377,8 @@ function generatePopupHtml(theme) {
   <div class="header">
     <div class="swatch"></div>
     <div>
-      <div class="title">${theme.name}</div>
-      <div class="subtitle">by ${theme.author} &middot; v${theme.version}</div>
+      <div class="title">${htmlEscape(theme.name)}</div>
+      <div class="subtitle">by ${htmlEscape(theme.author)} &middot; v${htmlEscape(theme.version)}</div>
     </div>
   </div>
   <div class="colors">
@@ -1264,6 +1528,12 @@ function cmdApply(themeFilePath) {
   // Reference the custom theme by string (NOT an object) per Claude Code's contract.
   settings.theme = `custom:${theme.id}`;
 
+  // Defence in depth: re-assert the slug immediately before it forms a path,
+  // independent of validateTheme, so no future edit there can open a traversal.
+  if (typeof theme.id !== "string" || !SLUG_RE.test(theme.id)) {
+    log("error", `Unsafe theme id for file path: "${theme.id}"`);
+    process.exit(1);
+  }
   const themeFile = path.join(CLAUDE_THEMES_DIR, `${theme.id}.json`);
   writeJsonAtomic(SETTINGS_PATH, settings);
   writeJsonAtomic(themeFile, ccTheme);
@@ -1457,7 +1727,7 @@ function cmdPreview(themeFilePath, port = 8765) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preview: ${theme.name}</title>
+  <title>Preview: ${htmlEscape(theme.name)}</title>
   <style>
     :root {
 ${cssVars}
@@ -1642,7 +1912,7 @@ ${cssVars}
     <div style="background:var(--ct-text-primary)"></div>
     <div style="background:var(--ct-user-message-text)"></div>
   </div>
-  <div class="preview-badge">Preview: ${theme.name} v${theme.version}</div>
+  <div class="preview-badge">Preview: ${htmlEscape(theme.name)} v${htmlEscape(theme.version)}</div>
   <div class="app">
     <aside class="sidebar">
       <div class="logo"><div class="logo-icon"></div>Claude</div>
@@ -1651,15 +1921,15 @@ ${cssVars}
       <div class="nav-item">Settings</div>
     </aside>
     <main class="main">
-      <div class="header">${theme.name} — Preview</div>
+      <div class="header">${htmlEscape(theme.name)} — Preview</div>
       <div class="chat">
-        <div class="message user">Hello! This is a preview of the <strong>${theme.name}</strong> theme. How does it look?</div>
+        <div class="message user">Hello! This is a preview of the <strong>${htmlEscape(theme.name)}</strong> theme. How does it look?</div>
         <div class="message assistant">
           This is how assistant messages appear. The theme uses <code>${c.brandPrimary || "#6366f1"}</code> as the primary brand color.
-          ${theme.description ? `<br><br><em>${theme.description}</em>` : ""}
+          ${theme.description ? `<br><br><em>${htmlEscape(theme.description)}</em>` : ""}
         </div>
         <div class="message user">Can I use custom fonts too?</div>
-        <div class="message assistant">Yes! This theme ${typo.fontFamily ? `uses <code>${typo.fontFamily}</code> for typography.` : "uses the default system font stack."} You can also add a custom logo and favicon.</div>
+        <div class="message assistant">Yes! This theme ${typo.fontFamily ? `uses <code>${htmlEscape(typo.fontFamily)}</code> for typography.` : "uses the default system font stack."} You can also add a custom logo and favicon.</div>
       </div>
       <div class="input-bar">
         <input class="input-field" placeholder="Type a message..." value="Preview message" readonly>
@@ -1903,6 +2173,8 @@ module.exports = {
   buildClaudeCodeTheme,
   lighten,
   pickBase,
+  buildPalette,
+  isColorValue,
   CC_TOKENS,
   ANSI_NAMES,
   VALID_BASES,

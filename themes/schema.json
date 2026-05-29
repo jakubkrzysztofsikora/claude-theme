@@ -259,31 +259,56 @@
     },
     "terminal": {
       "type": "object",
-      "description": "Optional terminal color overrides for Claude CLI",
+      "description": "Optional Claude Code CLI theme overrides. NOTE: this schema is documentation; build-theme.js validateTheme() is the runtime gate.",
       "properties": {
         "userColor": {
-          "$ref": "#/definitions/hexColor",
-          "description": "Color for user messages in terminal"
+          "$ref": "#/definitions/colorValue",
+          "description": "Color for user message labels in terminal"
         },
         "assistantColor": {
-          "$ref": "#/definitions/hexColor",
-          "description": "Color for assistant messages in terminal"
+          "$ref": "#/definitions/colorValue",
+          "description": "Color for assistant message labels + body text in terminal"
         },
         "backgroundColor": {
-          "$ref": "#/definitions/hexColor",
-          "description": "Terminal background color"
+          "$ref": "#/definitions/colorValue",
+          "description": "Message background color"
         },
         "promptColor": {
-          "$ref": "#/definitions/hexColor",
-          "description": "Input prompt color"
+          "$ref": "#/definitions/colorValue",
+          "description": "Input prompt / prompt border color"
         },
         "errorColor": {
-          "$ref": "#/definitions/hexColor",
+          "$ref": "#/definitions/colorValue",
           "description": "Error message color"
         },
         "successColor": {
-          "$ref": "#/definitions/hexColor",
+          "$ref": "#/definitions/colorValue",
           "description": "Success message color"
+        },
+        "systemColor": {
+          "$ref": "#/definitions/colorValue",
+          "description": "Accent color for plan mode / IDE indicators"
+        },
+        "base": {
+          "type": "string",
+          "enum": [
+            "dark",
+            "light",
+            "dark-daltonized",
+            "light-daltonized",
+            "dark-ansi",
+            "light-ansi"
+          ],
+          "description": "Claude Code base preset this theme extends. If omitted, inferred from tags."
+        },
+        "deriveAll": {
+          "type": "boolean",
+          "description": "When true, derive the full token set (diffs, rainbow, subagents, etc.) from the palette. Default false (only explicitly-mapped tokens are emitted). Requires hex tokens.color.success/error/warning."
+        },
+        "overrides": {
+          "type": "object",
+          "description": "Raw escape hatch: a map of Claude Code token name -> color value. Token names are validated against the verified set in code; values accept any colorValue form.",
+          "additionalProperties": { "$ref": "#/definitions/colorValue" }
         }
       },
       "additionalProperties": false
@@ -296,6 +321,12 @@
       "description": "6-digit hexadecimal color with leading hash",
       "pattern": "^#[0-9A-Fa-f]{6}$",
       "examples": ["#FF5733", "#1a1a2e"]
+    },
+    "colorValue": {
+      "type": "string",
+      "description": "A color value: hex (#rgb or #rrggbb), rgb(r,g,b) with 0-255 channels, ansi256(n) with 0-255, or ansi:<name>. Used only for terminal.* fields (tokens.color stays hex-only).",
+      "pattern": "^(#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})|rgb\\(\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*\\)|ansi256\\(\\d{1,3}\\)|ansi:[a-zA-Z]+)$",
+      "examples": ["#FF007F", "#f0a", "rgb(255,0,127)", "ansi256(213)", "ansi:magentaBright"]
     }
   }
 }
