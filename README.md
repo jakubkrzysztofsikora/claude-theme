@@ -9,7 +9,7 @@ that follows you across all three places you actually use Claude**: the claude.a
 the Claude Code CLI, and your Warp terminal. Native Claude only offers Light / Dark, and
 Claude Code's terminal colors are otherwise hard to fully control. This is a
 zero-dependency CLI that compiles **a single theme file** into a browser extension + a
-Claude Code theme + a Warp theme — author once, apply everywhere — with 8 built-in themes,
+Claude Code theme + a Warp theme — author once, apply everywhere — with 11 built-in themes,
 accessible high-contrast/colorblind bases, and an `init`-to-author workflow.
 
 > ⚠️ **Unofficial.** This is an independent, community project — not affiliated with,
@@ -404,7 +404,10 @@ All commands are available via `node .claude/skills/whitelabel-theme/build-theme
 | `list` | List all available themes | `list` |
 | `validate` | Validate a theme.json file | `validate <id\|theme.json>` |
 | `preview` | Preview theme in browser | `preview <id\|theme.json> [port]` |
+| `reset` | Remove the applied theme (CLI + Warp), restore defaults | `reset` |
 | `init` | Scaffold a new theme (in `./themes`) | `init <theme-name>` |
+| `doctor` | Check the CC token set for drift vs the installed Claude Code binary | `doctor` |
+| `convert` | Convert a theme to another terminal client (iTerm2 / Alacritty / Kitty / Windows Terminal) | `convert --client <name> <id\|theme.json>` |
 
 The theme argument accepts a built-in theme id or directory name (e.g. `cyberpunk`,
 `neon-district`) **or** a path to a `theme.json`. The browser extension is written to
