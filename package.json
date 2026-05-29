@@ -2,6 +2,21 @@
   "name": "claude-whitelabel-themes",
   "version": "1.0.0",
   "description": "Zero-dependency white-label theming system for Claude. Community theme marketplace with browser extension + CLI.",
+  "bin": {
+    "claude-theme": ".claude/skills/whitelabel-theme/build-theme.js"
+  },
+  "files": [
+    ".claude/skills/whitelabel-theme/build-theme.js",
+    ".claude/skills/whitelabel-theme/cli-derive.js",
+    ".claude/skills/whitelabel-theme/warp-channel.js",
+    ".claude/skills/whitelabel-theme/SKILL.md",
+    "themes/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "theme:apply": "node .claude/skills/whitelabel-theme/build-theme.js apply",
     "theme:compile": "node .claude/skills/whitelabel-theme/build-theme.js compile",
@@ -17,6 +32,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/claude-whitelabel-themes.git"
+    "url": "git+https://github.com/jakubkrzysztofsikora/claude-theme.git"
+  },
+  "homepage": "https://github.com/jakubkrzysztofsikora/claude-theme#readme",
+  "bugs": {
+    "url": "https://github.com/jakubkrzysztofsikora/claude-theme/issues"
   }
 }

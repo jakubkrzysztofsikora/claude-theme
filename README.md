@@ -2,6 +2,9 @@
 
 > **Zero-dependency theming system for Claude. Community-driven theme marketplace.**
 
+> ⚠️ **Unofficial.** This is an independent, community project — not affiliated with,
+> endorsed by, or supported by Anthropic. "Claude" is a trademark of Anthropic.
+
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT" />
@@ -42,13 +45,29 @@ Eight built-in themes, each crafted with attention to accessibility, contrast, a
 
 ## Quick Start
 
-Get your first theme running in under 60 seconds:
+Get your first theme running in under 60 seconds.
 
-### 1. Clone the repository
+### Option A — npm / npx (no clone)
 
 ```bash
-git clone https://github.com/your-username/claude-whitelabel-themes.git
-cd claude-whitelabel-themes
+# Run directly without installing
+npx claude-whitelabel-themes list
+npx claude-whitelabel-themes apply ./my-theme.json
+
+# …or install the `claude-theme` command globally
+npm install -g claude-whitelabel-themes
+claude-theme list
+```
+
+> The CLI writes its generated browser extension to `./extension` in your current
+> directory (override with `compile --out <dir>`), and applies CLI/Warp themes to
+> `~/.claude` and `~/.warp`.
+
+### Option B — clone the repo (for theme development)
+
+```bash
+git clone https://github.com/jakubkrzysztofsikora/claude-theme.git
+cd claude-theme
 ```
 
 ### 2. Apply a theme
@@ -88,7 +107,7 @@ Changes made in your terminal are instantly reflected in the browser. The browse
 Every theme ships with a complete color system (backgrounds, text, accents, semantic colors), a custom SVG logo, and a hand-picked Google Font. All themes are WCAG AA compliant at minimum.
 
 ### Community Theme Marketplace
-Browse, preview, and install themes contributed by the community at our [GitHub Pages marketplace](https://your-username.github.io/claude-whitelabel-themes/). Submit your own themes via pull request.
+Browse, preview, and install themes contributed by the community at our [GitHub Pages marketplace](https://jakubkrzysztofsikora.github.io/claude-theme/). Submit your own themes via pull request.
 
 ### Submit Themes via Pull Request
 The theme submission workflow is fully automated. Fork the repo, add your theme, validate it locally, and open a PR. CI runs accessibility checks and generates a preview. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
@@ -177,7 +196,7 @@ This System:  Your Code -> 0 deps  -> 0 sub-deps  -> N=0
 #### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/claude-whitelabel-themes.git
+git clone https://github.com/jakubkrzysztofsikora/claude-theme.git
 cd claude-whitelabel-themes
 ```
 
