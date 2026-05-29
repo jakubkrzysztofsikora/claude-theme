@@ -54,6 +54,12 @@ const WARP_SETTINGS = path.join(WARP_DIR, "settings.toml");
 const WARP_STATE = path.join(WARP_THEMES_DIR, ".whitelabel-state.json");
 const WARP_BAK = path.join(WARP_DIR, "settings.toml.whitelabel.bak");
 
+// Schema version of the runtime contract baked into the generated extension
+// (inject.js / styles.css). Bump when the injected-global shape, the CSS-var
+// naming, or the self-heal protocol changes — lets the extension detect a stale
+// injection after a claude.ai redesign or an extension upgrade and re-inject.
+const EXTENSION_SCHEMA_VERSION = 2;
+
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 // Hex in colorValue form: 3- or 6-digit. (tokens.color stays 6-digit only.)
 const HEX_ANY_RE = /^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
@@ -864,6 +870,17 @@ function generateInjectJs(theme) {
   const THEME_DATA = ${themeData};
   const THEME_ID = THEME_DATA.id;
 
+  // Runtime-contract schema version. Bumped by the generator whenever the
+  // injected-global shape / CSS-var naming / self-heal protocol changes.
+  const SCHEMA_VERSION = ${EXTENSION_SCHEMA_VERSION};
+
+  // Stable DOM ids/markers used by the self-heal health check. These do NOT
+  // depend on claude.ai's (React/Tailwind) class names — they are ours.
+  const STYLE_EL_ID = 'claude-theme-injected';
+  // A cheap, well-known custom property we set on :root and probe for to decide
+  // whether our styles are still live after an SPA re-render.
+  const SENTINEL_VAR = '--ct-schema-version';
+
   // -------------------------------------------------------------------------
   // State
   // -------------------------------------------------------------------------
@@ -871,6 +888,8 @@ function generateInjectJs(theme) {
   let styleSheet = null;
   let observer = null;
   let isActive = true;
+  // Warn-once latch so a changed claude.ai logo markup does not spam the console.
+  let loggedLogoMiss = false;
 
   // -------------------------------------------------------------------------
   // CSS Custom Property Injection
@@ -918,6 +937,7 @@ function generateInjectJs(theme) {
     const cssText = \`
 /* Claude Theme: \${theme.name} */
 :root {
+  \${SENTINEL_VAR}: \${SCHEMA_VERSION};
 \${buildCustomProperties(theme)}
 }
 
@@ -937,12 +957,12 @@ body {
 
       // Also inject as a style element for broader compatibility
       const styleEl = document.createElement('style');
-      styleEl.id = 'claude-theme-injected';
+      styleEl.id = STYLE_EL_ID;
       styleEl.textContent = cssText;
       const target = document.head || document.documentElement;
       if (target) {
         // Remove existing style element if present
-        const existing = document.getElementById('claude-theme-injected');
+        const existing = document.getElementById(STYLE_EL_ID);
         if (existing) existing.remove();
         target.appendChild(styleEl);
       }
@@ -950,13 +970,52 @@ body {
     } catch (e) {
       console.warn('[ClaudeTheme] CSSStyleSheet injection failed, falling back to style element:', e);
       const styleEl = document.createElement('style');
-      styleEl.id = 'claude-theme-injected';
+      styleEl.id = STYLE_EL_ID;
       styleEl.textContent = cssText;
-      const existing = document.getElementById('claude-theme-injected');
+      const existing = document.getElementById(STYLE_EL_ID);
       if (existing) existing.remove();
       const target = document.head || document.documentElement;
       if (target) target.appendChild(styleEl);
       styleSheet = styleEl;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Self-heal health check
+  // -------------------------------------------------------------------------
+
+  /**
+   * Return true when our themed :root vars are still applied to the live DOM.
+   * Probes the sentinel custom property (our own, not a claude.ai class) so it
+   * survives the SPA's React/Tailwind class churn. Also requires the matching
+   * schema version, so a leftover injection from an older extension build is
+   * treated as "needs re-inject".
+   */
+  function isThemeHealthy() {
+    const root = document.documentElement;
+    if (!root) return false;
+    let applied = false;
+    try {
+      const val = getComputedStyle(root).getPropertyValue(SENTINEL_VAR).trim();
+      applied = val !== '' && Number(val) === SCHEMA_VERSION;
+    } catch (e) {
+      // getComputedStyle can throw in detached/edge states — treat as unhealthy.
+      applied = false;
+    }
+    // Belt-and-braces: the <style> fallback element should also still be in the DOM.
+    const styleEl = document.getElementById(STYLE_EL_ID);
+    return applied || !!styleEl;
+  }
+
+  /**
+   * Re-inject styles if the health check fails (e.g. claude.ai swapped out the
+   * <head>/<html> on navigation, or another extension stripped our node).
+   * Cheap and idempotent — safe to call on every relevant mutation.
+   */
+  function healthCheckAndReinject(theme) {
+    if (!isActive) return;
+    if (!isThemeHealthy()) {
+      injectStyles(theme);
     }
   }
 
@@ -1074,24 +1133,48 @@ body {
 
     let target = null;
     for (const sel of selectors) {
-      target = document.querySelector(sel);
+      try {
+        target = document.querySelector(sel);
+      } catch (e) {
+        // A malformed selector should never abort the whole theme — skip it.
+        target = null;
+      }
       if (target) break;
     }
 
-    if (!target) return;
+    if (!target) {
+      // The logo markup may have changed in a claude.ai redesign. Warn ONCE so
+      // the rest of the theme (colors, fonts) keeps working without console spam.
+      if (!loggedLogoMiss) {
+        loggedLogoMiss = true;
+        console.warn(
+          '[ClaudeTheme] Could not locate the claude.ai logo to swap it. ' +
+          'The site markup may have changed; colors/fonts still apply. ' +
+          'Please report breakage so the extension can be updated.'
+        );
+      }
+      return;
+    }
 
     const replacement = createLogoElement(logo);
     if (replacement) {
-      target.replaceWith(replacement);
-      console.log('[ClaudeTheme] Logo replaced');
+      try {
+        target.replaceWith(replacement);
+        loggedLogoMiss = false; // recovered — allow a future warn if it breaks again
+        console.log('[ClaudeTheme] Logo replaced');
+      } catch (e) {
+        // Never throw out of the observer callback / activation path.
+        console.warn('[ClaudeTheme] Logo replacement failed:', e);
+      }
     }
   }
 
   /**
-   * Set up a MutationObserver to watch for logo elements appearing
-   * (handles SPA navigation and lazy rendering).
+   * Set up a MutationObserver to keep the theme alive across SPA navigation and
+   * lazy rendering. On every relevant DOM change it (a) self-heals the injected
+   * styles if claude.ai tore them out, and (b) re-applies the logo swap.
    */
-  function setupLogoObserver(theme) {
+  function setupResilienceObserver(theme) {
     if (observer) observer.disconnect();
 
     // Try immediate replacement first
@@ -1100,9 +1183,13 @@ body {
     observer = new MutationObserver((mutations) => {
       if (!isActive) return;
 
+      // Cheap self-heal: on ANY childList mutation, verify our styles are still
+      // applied and re-inject if not. Debounced so it never thrashes.
+      let sawChildListChange = false;
       let shouldReplace = false;
       for (const mutation of mutations) {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          sawChildListChange = true;
           for (const node of mutation.addedNodes) {
             if (node.nodeType === Node.ELEMENT_NODE) {
               const el = /** @type {Element} */ (node);
@@ -1113,12 +1200,18 @@ body {
                 el.matches?.('a[href="/"]')
               ) {
                 shouldReplace = true;
-                break;
               }
             }
           }
         }
-        if (shouldReplace) break;
+      }
+
+      if (sawChildListChange) {
+        clearTimeout(window.__CT_HEAL_TIMER);
+        window.__CT_HEAL_TIMER = setTimeout(
+          () => healthCheckAndReinject(theme),
+          150,
+        );
       }
 
       if (shouldReplace) {
@@ -1145,8 +1238,8 @@ body {
     isActive = true;
     injectStyles(theme);
     loadCustomFont(theme);
-    setupLogoObserver(theme);
-    console.log('[ClaudeTheme] Activated:', theme.id);
+    setupResilienceObserver(theme);
+    console.log('[ClaudeTheme] Activated:', theme.id, '(schema v' + SCHEMA_VERSION + ')');
   }
 
   /**
@@ -1165,7 +1258,10 @@ body {
       observer = null;
     }
 
-    const injected = document.getElementById('claude-theme-injected');
+    clearTimeout(window.__CT_HEAL_TIMER);
+    clearTimeout(window.__CT_LOGO_TIMER);
+
+    const injected = document.getElementById(STYLE_EL_ID);
     if (injected) injected.remove();
 
     console.log('[ClaudeTheme] Deactivated');
@@ -1212,10 +1308,13 @@ body {
 
   window.__CLAUDE_THEME__ = {
     version: '1.0.0',
+    schemaVersion: SCHEMA_VERSION,
     themeId: THEME_ID,
     theme: THEME_DATA,
     activate: () => activate(THEME_DATA),
     deactivate,
+    healthCheck: () => healthCheckAndReinject(THEME_DATA),
+    get isHealthy() { return isThemeHealthy(); },
     get isActive() { return isActive; },
   };
 
@@ -1239,9 +1338,19 @@ function generateStylesCss(theme) {
   const c = theme.tokens?.color || {};
   const lines = [
     "/* Claude Theme: " + theme.name + " */",
-    "/* This file provides fallback CSS variables for the content script */",
+    "/* This file provides fallback CSS variables for the content script. */",
+    "/*",
+    " * Resilience note: selectors below intentionally avoid claude.ai's",
+    " * React/Tailwind class names (which change between releases). They lean on",
+    " * stable attribute/structural selectors + CSS-variable mapping. If a",
+    " * claude.ai redesign breaks targeting, only these rules need updating;",
+    " * the :root variables keep working regardless. See README for reporting.",
+    " */",
     "",
     ":root {",
+    // Schema-version sentinel: kept in sync with inject.js's self-heal probe so a
+    // CSS-only injection (when JS is blocked) still advertises the contract version.
+    `  --ct-schema-version: ${EXTENSION_SCHEMA_VERSION};`,
   ];
 
   for (const [key, value] of Object.entries(c)) {
@@ -1260,15 +1369,42 @@ function generateStylesCss(theme) {
 
   lines.push("}", "");
 
-  // Basic element targeting for Claude's UI
+  // Element targeting for Claude's UI. Prefer stable, semantic hooks that are
+  // unlikely to churn across releases: ARIA roles, data-testid attributes, and
+  // structural selectors — NOT hashed/utility class names.
   lines.push(`
-/* Claude UI element targeting */
+/* Claude UI element targeting (attribute/structural selectors only) */
+
+/* App background — html/body are the most stable elements on the page. */
+html,
+body {
+  background-color: var(--ct-background, inherit);
+}
+
+/* Message rows — data-testid hooks are far more stable than class names. */
 [data-testid="user-message"] {
   color: var(--ct-user-message-text, inherit) !important;
 }
 
 [data-testid="assistant-message"] {
   color: var(--ct-assistant-message-text, inherit) !important;
+}
+
+/* The composer/input. Target by role + contenteditable rather than class. */
+[role="textbox"][contenteditable="true"],
+[data-testid="composer"] {
+  color: var(--ct-text-primary, inherit);
+  caret-color: var(--ct-brand-primary, currentColor);
+}
+
+/* Primary action buttons — type/role attributes are stable. */
+button[type="submit"] {
+  background-color: var(--ct-brand-primary, inherit);
+}
+
+/* Links inherit the brand accent where one is defined. */
+a[href] {
+  color: var(--ct-brand-primary, inherit);
 }
 `);
 
