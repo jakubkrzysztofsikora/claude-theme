@@ -1,0 +1,57 @@
+{
+  "$schema": "./schema.json",
+  "name": "High Contrast Pro",
+  "id": "high-contrast-pro",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "Maximum-contrast accessibility preset: pure-black background, pure-white text, and AAA-grade accent colors. Fully derives every Claude Code token (including the user-message background) so no hardcoded UI colors leak through and the white user-input highlight is replaced by a readable surface.",
+  "license": "MIT",
+  "tags": [
+    "dark",
+    "high-contrast",
+    "accessibility",
+    "a11y",
+    "wcag-aaa"
+  ],
+  "preview": {
+    "primary": "#FFFFFF",
+    "secondary": "#FFE000",
+    "background": "#000000",
+    "surface": "#0A0A0A",
+    "text": "#FFFFFF"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#FFFFFF",
+      "brandAccent": "#FFE000",
+      "background": "#000000",
+      "surface": "#0A0A0A",
+      "surfaceHover": "#1A1A1A",
+      "textPrimary": "#FFFFFF",
+      "textSecondary": "#D0D0D0",
+      "textMuted": "#A8A8A8",
+      "border": "#FFFFFF",
+      "success": "#00E676",
+      "warning": "#FFE000",
+      "error": "#FF6E6E",
+      "userMessageText": "#FFFFFF"
+    },
+    "typography": {
+      "fontFamily": "Atkinson Hyperlegible",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#FFFFFF\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"12\"/><path d=\"M16 4v24M4 16h24\"/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "🔳"
+    }
+  },
+  "terminal": {
+    "base": "dark-ansi",
+    "deriveAll": true
+  }
+}
