@@ -198,6 +198,16 @@ test("buildWarpTheme: name with colon -> quoted YAML scalar", () => {
   );
 });
 
+test("buildWarpTheme: unicode/emoji name emitted UTF-8-safe in the YAML scalar", () => {
+  const theme = JSON.parse(JSON.stringify(listThemes()[0]));
+  theme.name = "Café 🌿 Thème";
+  const yaml = warp.buildWarpTheme(theme, buildClaudeCodeTheme(theme));
+  assert.ok(
+    yaml.includes('name: "Café 🌿 Thème"'),
+    "unicode/emoji preserved in scalar",
+  );
+});
+
 // --- case 26a: deriveAll:false omitting status colours -> slots omitted -----
 test("buildWarpTheme: omits unresolved ANSI slots, no #NaN/#undefined", () => {
   const theme = JSON.parse(JSON.stringify(listThemes()[0]));

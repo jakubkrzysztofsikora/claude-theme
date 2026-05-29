@@ -368,7 +368,7 @@ function removeThemeValue(text, loc, { removeEmptySection } = {}) {
       const h = lines[i].text.match(HEADER_RE);
       if (h && h[1].trim() === "appearance.themes") {
         let bodyEmpty = true;
-        let removeUntil = lines[i].end;
+        const removeUntil = lines[i].end;
         for (let j = i + 1; j < lines.length; j++) {
           if (HEADER_RE.test(lines[j].text)) break;
           const tr = lines[j].text.trim();
