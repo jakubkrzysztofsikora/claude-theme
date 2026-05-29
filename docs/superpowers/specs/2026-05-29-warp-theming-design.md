@@ -65,50 +65,80 @@ the CC block backgrounds**.
 
 **`build-theme.js`** (I/O + orchestration):
 - `writeTextAtomic(path, text)` — temp + `rename`, **mode-preserving** (stat source,
-  chmod temp to match). Distinct from the JSON-only `writeJsonAtomic`.
+  chmod temp to match). The temp file is created **in the same directory** as the target
+  (like `writeJsonAtomic`) so `rename` stays intra-filesystem. Distinct from the
+  JSON-only `writeJsonAtomic` (which `JSON.stringify`s and does not preserve mode).
 - `writeWarpTheme`, `activateWarpTheme`, `deactivateWarpTheme`.
 - Wiring in `cmdApply` / `cmdReset` / `cmdInit`.
 
 ## Color mapping (`buildWarpTheme`) — corrected
 
-**All colors are resolved to canonical `#RRGGBB` before any math.** Reuse
-`cli-derive.js` `parseHex`/`toHex` (already handle `#rgb`). A helper
-`resolveHex(value, fallbackHex)`:
-- `#rgb`/`#rrggbb` → normalized 6-digit hex.
-- `rgb(r,g,b)` → hex.
-- `ansi:<name>` or `ansi256(n)` → **no RGB equivalent** → return `fallbackHex` (always a
-  hex from `tokens.color`, which is hex-only). This eliminates the `lighten("ansi:…") =
-  #NaN` bug (review B2): `lighten` only ever sees real hex.
+**All colors are resolved to canonical `#RRGGBB` before any math.** `cli-derive.js`
+`parseHex` is **hex-only** (it *throws* on `rgb()`/`ansi:` — verified against its tests),
+so `resolveHex(value, fallbackHex)` does the conversion itself and only delegates
+`#rgb`/`#rrggbb` normalization to `parseHex`/`toHex`:
+- `#rgb`/`#rrggbb` → normalized 6-digit hex (via `parseHex`/`toHex`).
+- `rgb(r,g,b)` → hex (resolveHex converts; **not** passed to `parseHex`).
+- `ansi:<name>` / `ansi256(n)` → **no RGB equivalent** → return `fallbackHex`.
+- value absent → `fallbackHex` (may itself be `undefined` — see "unresolved slots").
+
+This eliminates the `lighten("ansi:…") = #NaN` bug (review B2): `lighten` only ever
+sees real hex. **Fallbacks must also be resolved** — `tokens.color` is hex-only, but
+`ccTheme.overrides.userMessageBackground` can be a `terminal.backgroundColor` in
+`rgb()`/`ansi:` form, so `background` runs through `resolveHex` too.
 
 **Cross-channel blend is guaranteed by construction (review):** `buildWarpTheme`
 receives the already-built `ccTheme` and sets Warp `background =
-ccTheme.overrides.userMessageBackground` (falling back to resolved
-`tokens.color.background` if absent). So the Warp window bg always equals the CC block
-bg — the entire point of the feature — and a test asserts equality for every theme.
+resolveHex(ccTheme.overrides.userMessageBackground, resolveHex(tokens.color.background))`.
+`cmdApply` already builds `ccTheme` (build-theme.js:1492) *before* any I/O, so threading
+it in is pure and ordering-safe. A test asserts `warp.background ===
+ccTheme.overrides.userMessageBackground` (after resolution) for every bundled theme.
 
-**Polarity-aware ANSI anchors (review B3 — light-theme legibility):** ANSI `black`/
-`white` are absolute anchors, independent of theme polarity:
-- `normal.black` = the **darker** of {`textPrimary`, `surface`, `background`} by
-  luminance; `normal.white` = the **lighter** of {`textPrimary`, `surface`}.
-- This keeps "black" dark and "white" light on light *and* dark themes (fixes
-  `normal.black = surface` rendering near-white on the 4 light themes).
+**`details` is a Warp keyword, not a color** (review N2): it is `darker` or `lighter`,
+selected by background polarity — `darker` if `luminance(background) < 0.5`, else
+`lighter`. Luminance = sRGB relative luminance `0.2126·R + 0.7152·G + 0.0722·B` on
+0–1-normalized linearized channels; the exact formula is pinned so the deterministic
+test has a single oracle. (`contrastFloor` is **not** used here — it adjusts a color, it
+does not pick a keyword.)
 
-| Warp field | Source (resolved to hex; first defined wins) |
+**Polarity-and-contrast-safe ANSI anchors (review B3, QA white-of-two-darks):** ANSI
+`black`/`white` are absolute anchors that must stay dark/light on *every* theme,
+including monochrome/high-contrast where both candidate tokens may be dark:
+- `normal.black` = `contrastFloor(darker-of{textPrimary,surface,background}, background, MIN_ANSI)`
+- `normal.white` = `contrastFloor(lighter-of{textPrimary,surface}, background, MIN_ANSI)`
+- `MIN_ANSI` is pinned at **3.0** (WCAG large-text floor; same family as the CC
+  derivation floors). `contrastFloor` nudges the anchor toward the needed extreme when
+  the raw candidate is too low-contrast (fixes "lighter-of-two-dark-colors" yielding a
+  dark "white").
+
+**`lighten` for bright variants is pinned (review N3):** use `cli-derive.lighten` (which
+validates hex and requires an explicit amount) with **amount `0.25`** — the
+`build-theme.lighten` default `0.06` is visually indistinguishable and would make the
+bright row a no-op. `bright.white = lighten(normal.white, 0.25)` clamped at `#FFFFFF`.
+
+**Unresolved slots are omitted (review harness-#1):** the status rows
+(`red`/`green`/`yellow`) source from `terminal.*` → `tokens.color.{error,success,warning}`,
+which are required **only when `deriveAll` is true**. If a `deriveAll:false` user theme
+defines neither side, that slot resolves to `undefined` → **omit the key** so Warp uses
+its own preset default (never emit `#NaN`/`#undefined`). All 8 bundled themes define
+these, so their goldens carry full palettes.
+
+| Warp field | Source (resolved via `resolveHex`; first defined wins; omit if unresolved) |
 |---|---|
 | `name` | `theme.name` (quoted scalar — see escaping) |
 | `background` | `ccTheme.overrides.userMessageBackground` → `tokens.color.background` |
 | `foreground` | `terminal.assistantColor` → `tokens.color.textPrimary` |
 | `accent` | `terminal.promptColor` → `tokens.color.brandPrimary` |
-| `details` | by **contrast headroom** vs background via `contrastFloor` (`cli-derive.js:107`), **not** a luminance<0.5 split |
-| `normal.black` | darker of {textPrimary, surface, background} |
-| `normal.red` | `terminal.errorColor` → `tokens.color.error` |
-| `normal.green` | `terminal.successColor` → `tokens.color.success` |
-| `normal.yellow` | `tokens.color.warning` |
+| `details` | keyword by background luminance (pinned formula above) |
+| `normal.black` | `contrastFloor(darker-of{textPrimary,surface,background}, bg, 3.0)` |
+| `normal.red` | `terminal.errorColor` → `tokens.color.error` *(omit if absent)* |
+| `normal.green` | `terminal.successColor` → `tokens.color.success` *(omit if absent)* |
+| `normal.yellow` | `tokens.color.warning` *(omit if absent)* |
 | `normal.blue` | `terminal.systemColor` → `tokens.color.brandAccent` |
 | `normal.magenta` | `tokens.color.textSecondary` → `brandPrimary` |
 | `normal.cyan` | `terminal.userColor` → `tokens.color.brandPrimary` |
-| `normal.white` | lighter of {textPrimary, surface} |
-| `bright.*` | `lighten(normal.*)` (now always valid hex); `bright.white` = `lighten(normal.white)` **clamped**, never a hardcoded `#FFFFFF` |
+| `normal.white` | `contrastFloor(lighter-of{textPrimary,surface}, bg, 3.0)` |
+| `bright.*` | `lighten(normal.*, 0.25)`; `bright.white` clamped at `#FFFFFF` |
 
 Every emitted color is asserted to match `/^#[0-9a-f]{6}$/` (test), and
 `normal.white`/`bright.white` must clear a minimum contrast vs `background` (test, catches
@@ -165,13 +195,20 @@ plus a one-time `~/.warp/settings.toml.whitelabel.bak`.
    Also: if the current value already equals what we'd write, skip the edit entirely.
 4. Write `settings.toml.whitelabel.bak` only if absent (the true pre-automation file).
 5. **Concurrency abort:** re-stat/hash `settings.toml`; if changed since step 2 → abort
-   activation, leave YAML written, print the half-applied notice (below).
+   activation, leave YAML written, print the half-applied notice (below). **Residual
+   window (review B2):** a TOCTOU gap remains between this re-stat and the `rename` in
+   step 6 — `writeTextAtomic` guarantees the file is never *torn*, but a Warp write
+   landing in that narrow window is still lost (last-rename-wins). This is inherent to
+   clobbering a live-owned file without OS locks; documented and accepted, narrowed (not
+   eliminated) by the re-stat. The user-facing guidance is "apply with Warp closed."
 6. `writeTextAtomic` the rewritten file; persist/refresh state (`activeId`, `yamlPath`
    updated; `originalValueText` preserved).
 
-**`deactivateWarpTheme()`** (reset):
-1. `SLUG_RE`-assert `activeId` from state (or, if no state, derive id from the CC
-   `custom:<id>` slug so an orphaned YAML from a half-applied run is still cleaned).
+**`deactivateWarpTheme(slugHint)`** (reset) — receives the CC slug from `cmdReset`
+*before* CC cleanup deletes it (see Wiring/N1):
+1. `SLUG_RE`-assert `activeId` from state; if no state, fall back to `slugHint` (the CC
+   `custom:<id>` slug captured by `cmdReset`) so an orphaned YAML from a half-applied
+   run is still cleaned. If neither yields a safe slug → no-op.
 2. Re-locate the `theme` value **by content** (don't trust stored line indices —
    review R12). **Restore only if** the current value is one we wrote (matches
    `custom_<activeId>` → our `yamlPath`); otherwise the user changed themes in Warp
@@ -187,7 +224,15 @@ plus a one-time `~/.warp/settings.toml.whitelabel.bak`.
   skipped/aborted**, the summary states explicitly *"Warp theme written but NOT
   activated"* and prints the exact `theme = …` line to paste into `settings.toml`
   (review M2 — no false "success").
-- `cmdReset`: call `deactivateWarpTheme` alongside the existing CC cleanup.
+- `cmdReset` (review N1 — ordering is load-bearing): `cmdReset` currently early-returns
+  when `settings.json` is absent or `theme` is not a `custom:` value (build-theme.js:1587,
+  1602), and later does `delete settings.theme`. **`deactivateWarpTheme(slugHint)` must
+  run unconditionally and FIRST** — before those early returns and before
+  `delete settings.theme` — capturing the `custom:<id>` slug while it still exists.
+  Otherwise a user who already cleared the CC theme via `/theme` can never clean up the
+  Warp YAML / restore `settings.toml` (the exact orphan the state model targets). This
+  reconciles test 4 (no prior apply → no-op) with test 6 (orphan cleanup via slug): the
+  call always runs, but no-ops cleanly when there is nothing of ours to undo.
 - `cmdInit`: template gains `"deriveAll": true` + the `terminal` friendly fields.
 
 ## Error handling
@@ -198,7 +243,10 @@ plus a one-time `~/.warp/settings.toml.whitelabel.bak`.
 - Brace scan hits `"""`/`'''` or EOF with depth>0 → bail, leave file untouched.
 - Concurrency change detected → abort activation (see state model step 5).
 - All TOML writes via `writeTextAtomic` (temp+rename, mode-preserving); `.bak` precedes
-  the first edit so recovery is possible and is **tested**.
+  the first edit. **The `.bak` is manual-recovery insurance only** — reset restores from
+  `originalValueText` in state, not from `.bak`. Its sole automated guarantee (test 19a)
+  is that it is byte-identical to the pre-automation file; restoring *from* it is a
+  documented manual step, not a code path.
 
 ## Security
 
@@ -207,22 +255,40 @@ plus a one-time `~/.warp/settings.toml.whitelabel.bak`.
   defense-in-depth atop the existing name allowlist.
 - No new external input, no network, no eval.
 
-## Testing (`node --test`, `__tests__/`) — expanded per review
+## Testing (`node --test`, `__tests__/`) — expanded per re-review
 
-Use the **real worst-case `settings.toml` shape** as the editor fixture: nested
-multi-line inline table with a trailing comma, a sibling `system_theme = false`, and a
-`[privacy]`-style single-quoted regex string containing `{ } , "`.
+Conventions mirror the existing suite: integration cases run the CLI as a subprocess
+with an **isolated `HOME`** (so they hit a temp `~/.warp/`, never the developer's real
+one); pure cases use hand oracles; golden output is compared via `assert.deepEqual`.
+
+**Golden mechanism (made concrete — review M1/test-28).** Goldens live in
+`__tests__/golden/` keyed by theme **id**. The CC channel already has them; this feature
+adds a **Warp-YAML golden** per bundled theme (`__tests__/golden/warp/<id>.yaml`) so the
+user-visible YAML is review-gated, not just invariant-checked. Regeneration is a defined
+command, not hand-editing: `node build-theme.js compile <theme> --emit-golden` writes
+both the CC-JSON and Warp-YAML goldens. The PR's golden diff is the review artifact for
+the `deriveAll` rollout.
+
+**Pinned thresholds.** ANSI anchor contrast floor `MIN_ANSI = 3.0`; luminance split for
+`details` at `< 0.5` using the pinned sRGB formula. Tests assert against these constants.
+
+**Editor fixture.** The **real worst-case `settings.toml`** shape: nested multi-line
+inline table with a trailing comma, sibling `system_theme = false`, and a `[privacy]`
+single-quoted regex string containing `{ } , "`.
 
 **Lifecycle / state:**
 1. `apply A → apply B → reset` restores the **pre-automation original**, not A. *(top bug)*
-2. `apply A → apply A` leaves the restorable original unchanged (idempotent).
+2. `apply A → apply A`: restorable original unchanged **and** `settings.toml` is
+   byte-identical across the second apply (skip-edit path, no churn).
 3. `apply → reset → reset` (double reset) is a clean no-op the second time.
 4. `reset` with no prior apply / no state file → exit 0, touches nothing.
 5. `apply`, delete the YAML, `reset` → no throw, `settings.toml` still restored.
-6. `apply`, delete state file, `reset` → defined behavior (clean orphaned YAML via CC slug).
+6. `apply`, delete state file, `reset` → orphaned YAML cleaned via CC `slugHint`.
 7. `apply`, insert lines above the section, `reset` restores correct lines (re-locate by content).
-8. Fresh machine: no `~/.warp/` → apply exits 0, creates dir + minimal `settings.toml`.
-9. `~/.warp/` exists, no `settings.toml` → minimal file created.
+8. Fresh machine (no `~/.warp/`): apply exits 0, creates dir + minimal `settings.toml`;
+   the created file re-parses cleanly through `locateThemeValue`; `apply → reset` returns
+   it to a **no-`theme`-key** state (asserts `originalValueText=null` handling).
+9. `~/.warp/` exists, no `settings.toml` → minimal file created (same content assertions as 8).
 
 **TOML editor (pure):**
 10. Replace nested multi-line inline table + trailing comma, byte-preserving all else (incl. `system_theme`).
@@ -232,24 +298,49 @@ multi-line inline table with a trailing comma, a sibling `system_theme = false`,
 14. CRLF round-trips as CRLF; no-trailing-newline preserved.
 15. `theme=`, `theme  =`, tab-indented all located; indentation preserved.
 16. Comment containing `}` ignored by the matcher.
-17. Malformed/never-closing brace → bail, file byte-identical.
-18. Round-trip: original → activate → deactivate → **byte-identical** to original.
+17. Malformed/never-closing brace (and `"""`/`'''`) → bail, file byte-identical.
+18. Round-trip: original → activate → deactivate → **byte-identical** to original (final
+    state only; the activated intermediate is single-line and intentionally differs).
 19. Crash-injection between temp-write and rename → original intact, no partial.
+19a. `.bak` written on first edit is **byte-identical** to the pre-automation file.
 
 **`buildWarpTheme` (pure):**
-20. `details` correct for a dark and a light fixture (via contrast headroom).
-21. `bright.* === lighten(normal.*)`, all valid hex; `bright.white` valid + visible on light bg.
-22. **For every bundled theme:** `warp.background === ccTheme.overrides.userMessageBackground`.
-23. For every bundled theme: all 16 ANSI colors valid hex; `normal.white`/`bright.white`
-    clear a min contrast vs background (catch light-theme inversion).
-24. A `terminal.*` color in `ansi:`/`rgb()`/`#rgb` form never yields `#NaN` (resolves or falls back).
-25. Name `"Solarized: Dark"` → valid YAML + TOML; unicode/emoji name UTF-8-valid.
-26. A validation-forbidden name causes apply to exit non-zero before `buildWarpTheme`.
+20. `details` = `darker` for a dark-bg fixture, `lighter` for a light-bg fixture, using
+    the pinned luminance formula/threshold (deterministic oracle).
+21. `bright.* === lighten(normal.*, 0.25)` (the pinned fn+amount), all valid hex;
+    `bright.white` clamped, ≥ `MIN_ANSI` contrast vs background.
+22. **For every bundled theme:** resolved `warp.background === resolveHex(ccTheme.overrides.userMessageBackground)`.
+23. For every bundled theme **incl. `high-contrast`/`minimalist`**: all emitted ANSI
+    colors match `/^#[0-9a-f]{6}$/`; `normal.black` ≤ and `normal.white` ≥ `MIN_ANSI`
+    contrast vs background (catches the "lighter-of-two-dark-colors" hole).
+24. A `terminal.*` color in `rgb()` → correct hex; in `ansi:`/`ansi256()` → equals the
+    **specific** documented `tokens.color` fallback hex (not merely "valid hex"); never `#NaN`.
+25. Name `"Solarized: Dark"` → valid YAML scalar + valid TOML basic string; unicode/emoji
+    name UTF-8-valid in both sinks.
+26. A validation-forbidden name (`"`, `;`, `{`) causes apply to exit non-zero before `buildWarpTheme`.
+26a. A `deriveAll:false` theme omitting `error`/`success`/`warning` entirely → those ANSI
+    slots are **omitted** from the YAML (no `#NaN`/`#undefined`), other slots present.
+
+**Concurrency / not-activated branches (review — flagship gap):**
+29. **Abort-if-changed:** via a seam, mutate `settings.toml` between `locateThemeValue`
+    and `writeTextAtomic`; assert (a) summary prints "Warp theme written but NOT
+    activated" + the exact paste-line, (b) the YAML is on disk, (c) `settings.toml`
+    **retains the concurrent edit** (not clobbered), (d) no false "applied successfully".
+30. For each of {`settings.toml` unreadable, malformed-brace bail, duplicate-`theme`-in-`[appearance]`}:
+    YAML written + paste-line printed + no false success.
+31. `high-contrast` (and `light`) after `deriveAll`: CC `text`/`diffAdded`/`diffRemoved`
+    and Warp `foreground`/`normal.white` clear the theme's intended ratio (≥ 7:1 for
+    high-contrast); if unreachable, that theme's `deriveAll` stays off (gates the open item).
+32. `writeTextAtomic` **mode-preservation**: chmod fixture to `0600`, apply, assert the
+    rewritten `settings.toml` is still `0600` (temp default `0644` must not leak).
+33. **Additive insert:** `settings.toml` with other tables but no `[appearance.themes]` →
+    apply inserts a valid section + `theme` line at EOF, byte-preserving everything above;
+    `reset` removes exactly those lines.
 
 **deriveAll rollout:**
 27. Every bundled theme still passes `validateTheme` after its `deriveAll` setting.
-28. Golden files regenerated for the 5 flipped themes and asserted; `minimalist`'s
-    golden unchanged (stays 14 keys).
+28. CC-JSON **and** Warp-YAML goldens regenerated for the 5 flipped themes and asserted;
+    `minimalist`'s CC golden unchanged (stays 14 keys); its Warp golden still emitted.
 
 ## Documentation
 
@@ -263,4 +354,5 @@ line-preserving activation, abort-if-changed concurrency, reset cleanup, the
   not, switch the writer to bare-string `theme = "<name>"` (the locator/restorer already
   handle the string-value extent). Gated by manual verification on the first apply.
 - Verify `high-contrast` retains adequate contrast under `deriveAll` (deriveTokens has
-  contrast floors); if it degrades, keep its `deriveAll` off like `minimalist`.
+  contrast floors); **gated by test 31** — if it degrades, keep its `deriveAll` off like
+  `minimalist` (drops the rollout from 5 themes to 4).
