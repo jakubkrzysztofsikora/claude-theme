@@ -202,7 +202,48 @@ test("crash-before-rename leaves settings.toml intact; .bak == pre-automation", 
     ORIGINAL,
     ".bak is the pre-automation original",
   );
+  // no stray <settings>.<pid>.tmp left behind (writeTextAtomic cleans up on failure)
+  const strays = fs
+    .readdirSync(path.join(home, ".warp"))
+    .filter((f) => /^settings\.toml\.\d+\.tmp$/.test(f));
+  assert.deepEqual(strays, [], "no stray .tmp after crash");
 });
+
+// 9 — ~/.warp exists but no settings.toml -> minimal file created (distinct from 8).
+test("warp dir exists but no settings.toml -> minimal file created", () => {
+  const home = tmpHome();
+  fs.mkdirSync(path.join(home, ".warp"), { recursive: true });
+  assert.equal(run(home, ["apply", NATURE]).status, 0);
+  const s = read(settingsPath(home));
+  assert.ok(
+    s.includes("[appearance.themes]") && s.includes("custom_forest_canopy"),
+  );
+  assert.equal(run(home, ["reset"]).status, 0);
+  assert.ok(!read(settingsPath(home)).includes("custom_forest_canopy"));
+});
+
+// 30 (unreadable) — chmod 0000 settings.toml -> not activated, file untouched.
+test(
+  "not-activated: unreadable settings -> warn + paste-line, untouched",
+  {
+    skip:
+      process.getuid && process.getuid() === 0 ? "root bypasses perms" : false,
+  },
+  () => {
+    const home = tmpHome();
+    seedSettings(home, ORIGINAL);
+    fs.chmodSync(settingsPath(home), 0o000);
+    const res = run(home, ["apply", NATURE]);
+    fs.chmodSync(settingsPath(home), 0o600); // restore so read() can verify
+    assert.equal(res.status, 0);
+    assert.ok(/NOT activated/.test(res.out), "prints not-activated notice");
+    assert.equal(read(settingsPath(home)), ORIGINAL, "untouched");
+    assert.ok(
+      fs.existsSync(yamlPath(home, "forest-canopy")),
+      "YAML still written",
+    );
+  },
+);
 
 // 26 — validation-forbidden name -> apply exits non-zero before buildWarpTheme.
 test("forbidden theme name -> apply exits non-zero, no Warp YAML written", () => {

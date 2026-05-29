@@ -287,17 +287,28 @@ function writeTextAtomic(filePath, text) {
   } catch {
     /* new file */
   }
-  fs.writeFileSync(tmp, text, "utf8");
-  if (mode !== undefined) fs.chmodSync(tmp, mode);
-  // Test-only fault seam (inert in production): simulate a crash after the temp is
-  // written but before the rename of settings.toml, to prove no partial/torn file.
-  if (
-    process.env.WL_WARP_FAULT === "crash-before-rename" &&
-    filePath === WARP_SETTINGS
-  ) {
-    throw new Error("WL_WARP_FAULT: crash-before-rename");
+  try {
+    fs.writeFileSync(tmp, text, "utf8");
+    if (mode !== undefined) fs.chmodSync(tmp, mode);
+    // Test-only fault seam (inert in production): simulate a failure after the temp is
+    // written but before the rename of settings.toml, to prove no partial/torn file.
+    if (
+      process.env.WL_WARP_FAULT === "crash-before-rename" &&
+      filePath === WARP_SETTINGS
+    ) {
+      throw new Error("WL_WARP_FAULT: crash-before-rename");
+    }
+    fs.renameSync(tmp, filePath);
+  } catch (err) {
+    // On any failure before the rename completes, remove the temp so we never leave a
+    // stray <file>.<pid>.tmp behind. The target file is untouched (rename is atomic).
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* already gone / never created */
+    }
+    throw err;
   }
-  fs.renameSync(tmp, filePath);
 }
 
 /**
