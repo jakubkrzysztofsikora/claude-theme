@@ -1,0 +1,24 @@
+name: "High Contrast Pro"
+accent: '#36d1ff'
+background: '#000000'
+foreground: '#ffffff'
+details: darker
+terminal_colors:
+  normal:
+    black: '#000000'
+    red: '#ff7a7a'
+    green: '#3bff7a'
+    yellow: '#ffb000'
+    blue: '#ffe600'
+    magenta: '#d4d4d4'
+    cyan: '#7df9ff'
+    white: '#ffffff'
+  bright:
+    black: '#404040'
+    red: '#ff9b9b'
+    green: '#6cff9b'
+    yellow: '#ffc440'
+    blue: '#ffec40'
+    magenta: '#dfdfdf'
+    cyan: '#9efbff'
+    white: '#ffffff'

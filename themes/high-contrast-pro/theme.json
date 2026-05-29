@@ -1,0 +1,64 @@
+{
+  "$schema": "../schema.json",
+  "name": "High Contrast Pro",
+  "id": "high-contrast-pro",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "Maximum-legibility high-contrast theme: pure-black canvas, pure-white text, and bold WCAG AAA accents. Derives a full Claude Code token set and a non-white user-input highlight so user messages stay readable (addresses Claude Code a11y issues #34702 and #8504).",
+  "license": "MIT",
+  "tags": [
+    "high-contrast",
+    "accessibility",
+    "a11y",
+    "wcag-aaa",
+    "dark"
+  ],
+  "preview": {
+    "primary": "#36D1FF",
+    "secondary": "#FFE600",
+    "background": "#000000",
+    "surface": "#101010",
+    "text": "#FFFFFF"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#36D1FF",
+      "brandAccent": "#FFE600",
+      "background": "#000000",
+      "surface": "#101010",
+      "surfaceHover": "#262626",
+      "textPrimary": "#FFFFFF",
+      "textSecondary": "#D4D4D4",
+      "textMuted": "#B0B0B0",
+      "border": "#FFFFFF",
+      "success": "#3BFF7A",
+      "warning": "#FFB000",
+      "error": "#FF7A7A",
+      "userMessageText": "#7DF9FF"
+    },
+    "typography": {
+      "fontFamily": "Atkinson Hyperlegible",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#36D1FF\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"4\" width=\"24\" height=\"24\" rx=\"3\"/><path d=\"M11 16h10M16 11v10\"/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "🔲"
+    }
+  },
+  "terminal": {
+    "deriveAll": true,
+    "base": "dark",
+    "userColor": "#7DF9FF",
+    "assistantColor": "#FFFFFF",
+    "systemColor": "#FFE600",
+    "errorColor": "#FF7A7A",
+    "successColor": "#3BFF7A",
+    "backgroundColor": "#000000",
+    "promptColor": "#36D1FF"
+  }
+}

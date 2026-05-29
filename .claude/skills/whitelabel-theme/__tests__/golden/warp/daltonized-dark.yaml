@@ -1,0 +1,24 @@
+name: "Daltonized Dark"
+accent: '#7aa7ff'
+background: '#0b0e14'
+foreground: '#edeff5'
+details: darker
+terminal_colors:
+  normal:
+    black: '#0b0e14'
+    red: '#fe6100'
+    green: '#56b4e9'
+    yellow: '#ffb000'
+    blue: '#ffb000'
+    magenta: '#aeb6c7'
+    cyan: '#7aa7ff'
+    white: '#edeff5'
+  bright:
+    black: '#484a4f'
+    red: '#fe8940'
+    green: '#80c7ef'
+    yellow: '#ffc440'
+    blue: '#ffc440'
+    magenta: '#c2c8d5'
+    cyan: '#9bbdff'
+    white: '#f2f3f8'

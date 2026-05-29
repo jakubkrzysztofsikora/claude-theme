@@ -84,8 +84,8 @@ node .claude/skills/whitelabel-theme/build-theme.js list
 ### Bidirectional Terminal + Browser Synchronization
 Changes made in your terminal are instantly reflected in the browser. The browser extension listens for theme updates and hot-reloads without a page refresh. Edit your `theme.json`, save, and watch Claude transform in real time.
 
-### 8 Built-In Themes
-Every theme ships with a complete color system (backgrounds, text, accents, semantic colors), a custom SVG logo, and a hand-picked Google Font. All themes are WCAG AA compliant at minimum.
+### 11 Built-In Themes
+Every theme ships with a complete color system (backgrounds, text, accents, semantic colors), a custom SVG logo, and a hand-picked Google Font. All themes are WCAG AA compliant at minimum, and three are purpose-built for accessibility (see below).
 
 ### Community Theme Marketplace
 Browse, preview, and install themes contributed by the community at our [GitHub Pages marketplace](https://your-username.github.io/claude-whitelabel-themes/). Submit your own themes via pull request.
@@ -114,6 +114,27 @@ The entire theme is expressed as CSS custom properties (`--theme-bg-primary`, `-
 
 ### MutationObserver-Based SPA Navigation
 Claude is a single-page application. The theme injector uses `MutationObserver` to detect route changes and DOM updates, ensuring your theme persists across conversations, projects, and settings pages.
+
+---
+
+## Accessibility
+
+Claude Code's built-in palette has documented accessibility gaps: some interface colors are effectively hardcoded and hard to override ([anthropics/claude-code#34702](https://github.com/anthropics/claude-code/issues/34702)), and the user-input highlight renders as a near-white block that washes out the typed text ([#8504](https://github.com/anthropics/claude-code/issues/8504)).
+
+This project ships three accessibility-first presets that target those pains. Each sets `terminal.deriveAll: true`, which derives a **complete** Claude Code token set from the palette — crucially deriving `userMessageBackground` from the theme background instead of leaving the default white block (the **#8504 fix**) — and overrides the otherwise-hardcoded colors end-to-end (the **#34702 mitigation**).
+
+| Theme | `id` | Base | What it's for |
+| --- | --- | --- | --- |
+| **High Contrast Pro** | `high-contrast-pro` | `dark` | Pure-black canvas, pure-white text, bold WCAG **AAA** accents (21:1 text contrast). Maximum legibility for low-vision use. |
+| **Daltonized Dark** | `daltonized-dark` | `dark-daltonized` | Colorblind-safe dark theme using the Okabe-Ito / IBM accessible palette (blue + orange + yellow) so success/warning/error stay distinguishable under deuteranopia and protanopia. |
+| **Daltonized Light** | `daltonized-light` | `light-daltonized` | Colorblind-safe light variant of the above on a bright canvas. |
+
+All three clear AA (and the high-contrast preset clears AAA) for text-vs-background contrast in both the CLI and Warp surfaces; these floors are enforced by the test suite. The daltonized presets build on Claude Code's `*-daltonized` bases so the underlying built-in palette is also colorblind-tuned.
+
+```bash
+# Apply the colorblind-safe dark preset across the CLI + Warp + browser surfaces
+node .claude/skills/whitelabel-theme/build-theme.js apply themes/daltonized-dark/theme.json
+```
 
 ---
 
@@ -234,6 +255,9 @@ claude /theme apply themes/nature/theme.json
 | **nature** | Core Team | Light/Dark | `#2e7d32` | AA | `green`, `organic`, `calm` |
 | **cyberpunk** | Core Team | Dark | `#ff00ff` | AA | `neon`, `cyberpunk`, `purple` |
 | **warm-neutral** | Core Team | Light/Dark | `#8d6e63` | AA | `warm`, `sepia`, `comfortable` |
+| **high-contrast-pro** | Core Team | Dark | `#36d1ff` | AAA | `high-contrast`, `accessibility`, `a11y` |
+| **daltonized-dark** | Core Team | Dark | `#7aa7ff` | AA | `colorblind-safe`, `accessibility`, `a11y` |
+| **daltonized-light** | Core Team | Light | `#0050c8` | AA | `colorblind-safe`, `accessibility`, `a11y` |
 
 ### Theme File Structure
 
