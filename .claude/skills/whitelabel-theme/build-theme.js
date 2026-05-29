@@ -1478,8 +1478,10 @@ function generatePopupHtml(theme) {
  * With { emitGolden:true } it instead (re)writes the test goldens for this theme:
  * __tests__/golden/<id>.json (CC) and __tests__/golden/warp/<id>.yaml (Warp).
  */
-function cmdCompile(themeFilePath, { emitGolden = false } = {}) {
+function cmdCompile(themeFilePath, { emitGolden = false, outDir } = {}) {
   log("step", `Compiling theme: ${themeFilePath}`);
+  // Where the extension is written: explicit --out wins, else EXTENSION_DIR (CWD/extension).
+  const extDir = outDir ? path.resolve(CWD, outDir) : EXTENSION_DIR;
 
   const theme = readJson(themeFilePath);
   if (!theme) {
@@ -1511,8 +1513,8 @@ function cmdCompile(themeFilePath, { emitGolden = false } = {}) {
   }
 
   // Ensure extension directory exists
-  if (!fs.existsSync(EXTENSION_DIR)) {
-    fs.mkdirSync(EXTENSION_DIR, { recursive: true });
+  if (!fs.existsSync(extDir)) {
+    fs.mkdirSync(extDir, { recursive: true });
   }
 
   // Generate all extension files
@@ -1525,12 +1527,12 @@ function cmdCompile(themeFilePath, { emitGolden = false } = {}) {
   };
 
   for (const [filename, content] of Object.entries(files)) {
-    const filePath = path.join(EXTENSION_DIR, filename);
+    const filePath = path.join(extDir, filename);
     fs.writeFileSync(filePath, content, "utf8");
     log("ok", `  Generated: ${filePath}`);
   }
 
-  log("info", `Extension compiled to: ${EXTENSION_DIR}`);
+  log("info", `Extension compiled to: ${extDir}`);
   return files;
 }
 
@@ -2408,12 +2410,14 @@ Options:
       if (!args[1]) {
         log(
           "error",
-          "Usage: node build-theme.js compile <theme-file> [--emit-golden]",
+          "Usage: node build-theme.js compile <theme-file> [--out <dir>] [--emit-golden]",
         );
         process.exit(1);
       }
+      const outIdx = args.indexOf("--out");
       cmdCompile(path.resolve(CWD, args[1]), {
         emitGolden: args.includes("--emit-golden"),
+        outDir: outIdx !== -1 ? args[outIdx + 1] : undefined,
       });
       break;
     }
