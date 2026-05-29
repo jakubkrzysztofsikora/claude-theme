@@ -6,7 +6,12 @@
   "author": "Claude Themes Community",
   "description": "Warm, earthy branded theme inspired by terracotta and clay with an elegant editorial feel. Features a cream background, rich terracotta accents, and Source Serif 4 typography.",
   "license": "MIT",
-  "tags": ["light", "warm", "branded", "earthy"],
+  "tags": [
+    "light",
+    "warm",
+    "branded",
+    "earthy"
+  ],
   "preview": {
     "primary": "#9A4822",
     "secondary": "#A14D32",
@@ -45,6 +50,7 @@
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#8A5038",
     "assistantColor": "#9A4822",
     "systemColor": "#825A16",

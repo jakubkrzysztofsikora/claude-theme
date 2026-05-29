@@ -1,0 +1,24 @@
+name: "Mono Space"
+accent: '#1a1a1a'
+background: '#ffffff'
+foreground: '#1a1a1a'
+details: lighter
+terminal_colors:
+  normal:
+    black: '#1a1a1a'
+    red: '#8a8a8a'
+    green: '#4d4d4d'
+    yellow: '#737373'
+    blue: '#737373'
+    magenta: '#737373'
+    cyan: '#4d4d4d'
+    white: '#ffffff'
+  bright:
+    black: '#535353'
+    red: '#a7a7a7'
+    green: '#7a7a7a'
+    yellow: '#969696'
+    blue: '#969696'
+    magenta: '#969696'
+    cyan: '#7a7a7a'
+    white: '#ffffff'

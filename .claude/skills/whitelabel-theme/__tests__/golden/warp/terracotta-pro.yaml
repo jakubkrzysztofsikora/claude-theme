@@ -1,0 +1,24 @@
+name: "Terracotta Pro"
+accent: '#fdf6f0'
+background: '#3d2b1f'
+foreground: '#9a4822'
+details: darker
+terminal_colors:
+  normal:
+    black: '#3d2b1f'
+    red: '#9b3d3d'
+    green: '#437046'
+    yellow: '#825a16'
+    blue: '#825a16'
+    magenta: '#6b5344'
+    cyan: '#8a5038'
+    white: '#f4ede6'
+  bright:
+    black: '#6e6057'
+    red: '#b46e6e'
+    green: '#729474'
+    yellow: '#a18350'
+    blue: '#a18350'
+    magenta: '#907e73'
+    cyan: '#a77c6a'
+    white: '#f7f2ec'

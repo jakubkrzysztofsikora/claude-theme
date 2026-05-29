@@ -1,0 +1,24 @@
+name: "A11y First"
+accent: '#ffffff'
+background: '#000000'
+foreground: '#00ccff'
+details: darker
+terminal_colors:
+  normal:
+    black: '#000000'
+    red: '#ff8080'
+    green: '#00ff66'
+    yellow: '#ffaa00'
+    blue: '#ffd600'
+    magenta: '#b8b8b8'
+    cyan: '#00ffcc'
+    white: '#ffffff'
+  bright:
+    black: '#404040'
+    red: '#ffa0a0'
+    green: '#40ff8c'
+    yellow: '#ffbf40'
+    blue: '#ffe040'
+    magenta: '#cacaca'
+    cyan: '#40ffd9'
+    white: '#ffffff'

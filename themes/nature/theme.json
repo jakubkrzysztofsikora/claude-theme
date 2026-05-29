@@ -6,7 +6,12 @@
   "author": "Claude Themes Community",
   "description": "A calming, organic theme inspired by deep forest greens and moss tones.",
   "license": "MIT",
-  "tags": ["dark", "nature", "green", "calm"],
+  "tags": [
+    "dark",
+    "nature",
+    "green",
+    "calm"
+  ],
   "preview": {
     "primary": "#4ADE80",
     "secondary": "#8B6914",
@@ -45,6 +50,7 @@
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#4ADE80",
     "assistantColor": "#F0EDE5",
     "systemColor": "#8B6914",

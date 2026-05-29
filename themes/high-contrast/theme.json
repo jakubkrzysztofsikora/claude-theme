@@ -6,7 +6,12 @@
   "author": "Claude Themes Community",
   "description": "WCAG 2.1 AAA compliant high-contrast theme with pure black background, pure white text, vivid colorblind-safe accents, and Atkinson Hyperlegible font for maximum accessibility.",
   "license": "MIT",
-  "tags": ["high-contrast", "accessibility", "a11y", "wcag-aaa"],
+  "tags": [
+    "high-contrast",
+    "accessibility",
+    "a11y",
+    "wcag-aaa"
+  ],
   "preview": {
     "primary": "#00CCFF",
     "secondary": "#FFD600",
@@ -45,6 +50,7 @@
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#00FFCC",
     "assistantColor": "#00CCFF",
     "systemColor": "#FFD600",

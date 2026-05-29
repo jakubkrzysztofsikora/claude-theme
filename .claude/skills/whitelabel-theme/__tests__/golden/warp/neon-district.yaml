@@ -1,0 +1,24 @@
+name: "Neon District"
+accent: '#ff007f'
+background: '#0a0612'
+foreground: '#f8f8ff'
+details: darker
+terminal_colors:
+  normal:
+    black: '#0a0612'
+    red: '#ff1a1a'
+    green: '#39ff14'
+    yellow: '#ffe600'
+    blue: '#00f0ff'
+    magenta: '#9ca3af'
+    cyan: '#ff007f'
+    white: '#f8f8ff'
+  bright:
+    black: '#47444d'
+    red: '#ff5353'
+    green: '#6bff4f'
+    yellow: '#ffec40'
+    blue: '#40f4ff'
+    magenta: '#b5bac3'
+    cyan: '#ff409f'
+    white: '#fafaff'

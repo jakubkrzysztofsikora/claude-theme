@@ -6,7 +6,12 @@
   "author": "Claude Themes Community",
   "description": "Warm and inviting like aged paper by candlelight. A comfortable reading experience with golden amber tones.",
   "license": "MIT",
-  "tags": ["light", "warm", "sepia", "comfortable"],
+  "tags": [
+    "light",
+    "warm",
+    "sepia",
+    "comfortable"
+  ],
   "preview": {
     "primary": "#A07818",
     "secondary": "#C49A6C",
@@ -41,10 +46,11 @@
     },
     "favicon": {
       "type": "emoji",
-      "value": "\uD83D\uDCDC"
+      "value": "📜"
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#A07818",
     "assistantColor": "#6B5B4F",
     "systemColor": "#9B8B7B",

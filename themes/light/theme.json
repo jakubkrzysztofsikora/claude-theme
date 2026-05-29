@@ -6,7 +6,11 @@
   "author": "Claude Themes Community",
   "description": "A clean, minimal light theme with professional blue accents and warm gray surfaces.",
   "license": "MIT",
-  "tags": ["light", "minimal", "professional"],
+  "tags": [
+    "light",
+    "minimal",
+    "professional"
+  ],
   "preview": {
     "primary": "#2563EB",
     "secondary": "#3B82F6",
@@ -41,10 +45,11 @@
     },
     "favicon": {
       "type": "emoji",
-      "value": "\u270F\uFE0F"
+      "value": "✏️"
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#008229",
     "assistantColor": "#2563EB",
     "systemColor": "#766F6A",

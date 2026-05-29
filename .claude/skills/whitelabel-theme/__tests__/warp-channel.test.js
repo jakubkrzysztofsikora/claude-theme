@@ -15,10 +15,11 @@ const warp = require(path.join(SKILL_DIR, "warp-channel.js"));
 const { buildClaudeCodeTheme } = require(
   path.join(SKILL_DIR, "build-theme.js"),
 );
-const { relLuminance, lighten } = require(
+const { relLuminance, lighten, contrastRatio } = require(
   path.join(SKILL_DIR, "cli-derive.js"),
 );
 
+const GOLDEN_WARP = path.join(__dirname, "golden", "warp");
 const HEX = /^#[0-9a-f]{6}$/;
 
 function listThemes() {
@@ -381,4 +382,62 @@ test("round-trip: replace-with-original restores byte-identical", () => {
   const loc2 = warp.locateThemeValue(changed);
   const restored = warp.replaceThemeValue(changed, loc2, original);
   assert.equal(restored, REAL_FIXTURE, "byte-identical after replace->restore");
+});
+
+// --- case 28: Warp golden recompute-and-compare (no drift from emitter) -----
+for (const theme of listThemes()) {
+  test(`Warp YAML matches golden: ${theme.id}`, () => {
+    const out = warp.buildWarpTheme(theme, buildClaudeCodeTheme(theme));
+    const golden = fs.readFileSync(
+      path.join(GOLDEN_WARP, `${theme.id}.yaml`),
+      "utf8",
+    );
+    assert.equal(out, golden, `warp golden drift for ${theme.id}`);
+  });
+}
+
+// --- case 31: deriveAll contrast gates (high-contrast + light) --------------
+test("high-contrast (a11y-first) under deriveAll keeps strong contrast", () => {
+  const theme = listThemes().find((t) => t.id === "a11y-first");
+  assert.ok(theme, "a11y-first theme present");
+  const cc = buildClaudeCodeTheme(theme);
+  const bg = theme.tokens.color.background;
+  // CC text must stay very readable (AAA) on a high-contrast theme.
+  assert.ok(
+    contrastRatio(cc.overrides.text, bg) >= 7,
+    `CC text contrast ${contrastRatio(cc.overrides.text, bg)} >= 7`,
+  );
+  // diffAdded/diffRemoved are subtle BACKGROUND fills (not text) — deriveTokens dims
+  // them by design, so the gate is "distinguishable from each other", not contrast-vs-bg.
+  assert.notEqual(
+    cc.overrides.diffAdded,
+    cc.overrides.diffRemoved,
+    "added vs removed diffs are distinguishable",
+  );
+  // Warp foreground must clear AAA vs the Warp background.
+  const yaml = warp.buildWarpTheme(theme, cc);
+  const fg = (yaml.match(/\nforeground: '([^']+)'/) || [])[1];
+  const wbg = (yaml.match(/\nbackground: '([^']+)'/) || [])[1];
+  assert.ok(
+    contrastRatio(fg, wbg) >= 7,
+    `warp fg contrast ${contrastRatio(fg, wbg)} >= 7`,
+  );
+});
+
+test("light (clean-slate) under deriveAll keeps AA text contrast", () => {
+  const theme = listThemes().find((t) => t.id === "clean-slate");
+  assert.ok(theme, "clean-slate theme present");
+  const cc = buildClaudeCodeTheme(theme);
+  const bg = theme.tokens.color.background;
+  assert.ok(
+    contrastRatio(cc.overrides.text, bg) >= 4.5,
+    `CC text contrast ${contrastRatio(cc.overrides.text, bg)} >= 4.5`,
+  );
+  const yaml = warp.buildWarpTheme(theme, cc);
+  const fg = (yaml.match(/\nforeground: '([^']+)'/) || [])[1];
+  const wbg = (yaml.match(/\nbackground: '([^']+)'/) || [])[1];
+  assert.ok(
+    contrastRatio(fg, wbg) >= 4.5,
+    `warp fg contrast ${contrastRatio(fg, wbg)} >= 4.5`,
+  );
 });

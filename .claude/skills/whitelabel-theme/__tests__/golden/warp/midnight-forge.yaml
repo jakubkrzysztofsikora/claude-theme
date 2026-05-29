@@ -1,0 +1,24 @@
+name: "Midnight Forge"
+accent: '#0192f4'
+background: '#0a0c10'
+foreground: '#0192f4'
+details: darker
+terminal_colors:
+  normal:
+    black: '#0a0c10'
+    red: '#f87171'
+    green: '#4ade80'
+    yellow: '#fbbf24'
+    blue: '#9ba3af'
+    magenta: '#9ba3af'
+    cyan: '#4ade80'
+    white: '#f2f3f5'
+  bright:
+    black: '#47494c'
+    red: '#fa9595'
+    green: '#77e6a0'
+    yellow: '#fccf5b'
+    blue: '#b4bac3'
+    magenta: '#b4bac3'
+    cyan: '#77e6a0'
+    white: '#f5f6f8'

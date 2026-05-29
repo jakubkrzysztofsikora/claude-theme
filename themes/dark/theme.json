@@ -6,7 +6,11 @@
   "author": "Claude Themes Community",
   "description": "A deep charcoal dark theme with electric blue accents, inspired by premium IDE aesthetics.",
   "license": "MIT",
-  "tags": ["dark", "professional", "ide-inspired"],
+  "tags": [
+    "dark",
+    "professional",
+    "ide-inspired"
+  ],
   "preview": {
     "primary": "#0192F4",
     "secondary": "#00C8FF",
@@ -41,10 +45,11 @@
     },
     "favicon": {
       "type": "emoji",
-      "value": "\u2699\uFE0F"
+      "value": "⚙️"
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#4ADE80",
     "assistantColor": "#0192F4",
     "systemColor": "#9BA3AF",

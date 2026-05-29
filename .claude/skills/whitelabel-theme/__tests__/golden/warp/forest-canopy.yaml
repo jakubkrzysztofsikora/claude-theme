@@ -1,0 +1,24 @@
+name: "Forest Canopy"
+accent: '#4ade80'
+background: '#0f1f17'
+foreground: '#f0ede5'
+details: darker
+terminal_colors:
+  normal:
+    black: '#0f1f17'
+    red: '#d4686a'
+    green: '#65a30d'
+    yellow: '#d97706'
+    blue: '#8b6914'
+    magenta: '#a3a092'
+    cyan: '#4ade80'
+    white: '#f9f8f5'
+  bright:
+    black: '#4b5751'
+    red: '#df8e8f'
+    green: '#8cba4a'
+    yellow: '#e39944'
+    blue: '#a88f4f'
+    magenta: '#bab8ad'
+    cyan: '#77e6a0'
+    white: '#fbfaf8'

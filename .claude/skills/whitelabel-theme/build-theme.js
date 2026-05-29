@@ -1472,8 +1472,10 @@ function generatePopupHtml(theme) {
 
 /**
  * Command: compile — Generate extension files from a theme JSON file.
+ * With { emitGolden:true } it instead (re)writes the test goldens for this theme:
+ * __tests__/golden/<id>.json (CC) and __tests__/golden/warp/<id>.yaml (Warp).
  */
-function cmdCompile(themeFilePath) {
+function cmdCompile(themeFilePath, { emitGolden = false } = {}) {
   log("step", `Compiling theme: ${themeFilePath}`);
 
   const theme = readJson(themeFilePath);
@@ -1490,6 +1492,20 @@ function cmdCompile(themeFilePath) {
   }
 
   log("ok", "Theme validation passed");
+
+  if (emitGolden) {
+    const ccTheme = buildClaudeCodeTheme(theme);
+    const goldenDir = path.join(__dirname, "__tests__", "golden");
+    const warpDir = path.join(goldenDir, "warp");
+    fs.mkdirSync(warpDir, { recursive: true });
+    writeJsonAtomic(path.join(goldenDir, `${theme.id}.json`), ccTheme);
+    writeTextAtomic(
+      path.join(warpDir, `${theme.id}.yaml`),
+      warp.buildWarpTheme(theme, ccTheme),
+    );
+    log("ok", `Emitted goldens for "${theme.id}" (CC + Warp)`);
+    return;
+  }
 
   // Ensure extension directory exists
   if (!fs.existsSync(EXTENSION_DIR)) {
@@ -2380,10 +2396,15 @@ Options:
 
     case "compile": {
       if (!args[1]) {
-        log("error", "Usage: node build-theme.js compile <theme-file>");
+        log(
+          "error",
+          "Usage: node build-theme.js compile <theme-file> [--emit-golden]",
+        );
         process.exit(1);
       }
-      cmdCompile(path.resolve(CWD, args[1]));
+      cmdCompile(path.resolve(CWD, args[1]), {
+        emitGolden: args.includes("--emit-golden"),
+      });
       break;
     }
 
