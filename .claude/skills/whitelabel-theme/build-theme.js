@@ -43,24 +43,101 @@ const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 // Theme slug shape (matches theme.id); guards filesystem ops against traversal.
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-// Valid Claude Code custom-theme override tokens, verified against the claude 2.1.153
-// binary. `messageActionsBackground` from the docs does NOT exist in that build and is
-// excluded. Re-verify (strings on the binary) when targeting a newer Claude Code.
+// Valid Claude Code custom-theme override tokens, verified against the claude 2.1.154
+// binary via `scripts/extract-cc-tokens.js` (quoted-string occurrence > 0). Tokens from
+// the docs that do NOT exist in the build are excluded: `messageActionsBackground`,
+// `selectionBg`, and the non-`claude` shimmer variants (`promptBorderShimmer`,
+// `permissionShimmer`, `warningShimmer`, `fastModeShimmer`, `inactiveShimmer`).
+// Re-run the extract script when targeting a newer Claude Code.
 const CC_TOKENS = new Set([
+  // Brand
   "claude",
-  "promptBorder",
-  "briefLabelYou",
-  "briefLabelClaude",
+  "claudeShimmer",
+  // Text
   "text",
-  "error",
+  "inverseText",
+  "inactive",
+  "subtle",
+  "suggestion",
+  "remember",
+  // Status
   "success",
+  "error",
   "warning",
+  "merged",
+  // Input / mode
+  "promptBorder",
+  "permission",
   "planMode",
+  "autoAccept",
+  "bashBorder",
   "ide",
+  "fastMode",
+  // Diffs
+  "diffAdded",
+  "diffRemoved",
+  "diffAddedDimmed",
+  "diffRemovedDimmed",
+  "diffAddedWord",
+  "diffRemovedWord",
+  // Message backgrounds
   "userMessageBackground",
   "userMessageBackgroundHover",
   "bashMessageBackgroundColor",
   "memoryBackgroundColor",
+  // Usage meter
+  "rate_limit_fill",
+  "rate_limit_empty",
+  // Speaker labels
+  "briefLabelYou",
+  "briefLabelClaude",
+  // Subagents
+  "red_FOR_SUBAGENTS_ONLY",
+  "blue_FOR_SUBAGENTS_ONLY",
+  "green_FOR_SUBAGENTS_ONLY",
+  "yellow_FOR_SUBAGENTS_ONLY",
+  "purple_FOR_SUBAGENTS_ONLY",
+  "orange_FOR_SUBAGENTS_ONLY",
+  "pink_FOR_SUBAGENTS_ONLY",
+  "cyan_FOR_SUBAGENTS_ONLY",
+  // Rainbow gradient
+  "rainbow_red",
+  "rainbow_orange",
+  "rainbow_yellow",
+  "rainbow_green",
+  "rainbow_blue",
+  "rainbow_indigo",
+  "rainbow_violet",
+  "rainbow_red_shimmer",
+  "rainbow_orange_shimmer",
+  "rainbow_yellow_shimmer",
+  "rainbow_green_shimmer",
+  "rainbow_blue_shimmer",
+  "rainbow_indigo_shimmer",
+  "rainbow_violet_shimmer",
+]);
+
+// ANSI color names accepted in `ansi:<name>` color values. Used by colorValue
+// validation; an allowlist (not a character class) to prevent smuggling.
+const ANSI_NAMES = new Set([
+  "black",
+  "red",
+  "green",
+  "yellow",
+  "blue",
+  "magenta",
+  "cyan",
+  "white",
+  "gray",
+  "grey",
+  "blackBright",
+  "redBright",
+  "greenBright",
+  "yellowBright",
+  "blueBright",
+  "magentaBright",
+  "cyanBright",
+  "whiteBright",
 ]);
 // Built-in bases a custom theme may extend, longest/most-specific first.
 const VALID_BASES = [
@@ -266,9 +343,11 @@ function validateTheme(theme, themeFilePath = "unknown") {
     }
   }
 
-  // id must be kebab-case
-  if (theme.id !== undefined && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(theme.id)) {
-    errors.push(`Invalid "id": must be kebab-case, got "${theme.id}"`);
+  // id must be a kebab-case string (also guards filesystem ops against traversal)
+  if (theme.id !== undefined) {
+    if (typeof theme.id !== "string" || !SLUG_RE.test(theme.id)) {
+      errors.push(`Invalid "id": must be kebab-case, got "${theme.id}"`);
+    }
   }
 
   // version must be SemVer-ish
@@ -1825,6 +1904,9 @@ module.exports = {
   lighten,
   pickBase,
   CC_TOKENS,
+  ANSI_NAMES,
+  VALID_BASES,
+  SLUG_RE,
   CLAUDE_THEMES_DIR,
   THEMES_DIR,
 };

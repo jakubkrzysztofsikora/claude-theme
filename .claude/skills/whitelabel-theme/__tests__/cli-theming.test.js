@@ -89,6 +89,38 @@ test("THEMES_DIR (repo) and CLAUDE_THEMES_DIR (user) are distinct paths", () => 
   assert.notEqual(path.resolve(THEMES_DIR), path.resolve(CLAUDE_THEMES_DIR));
 });
 
+test("CC_TOKENS pins the binary-verified set (2.1.154)", () => {
+  // The subset guard elsewhere catches over-emission; this pins the set itself
+  // so a careless edit or a bad version bump fails loudly. Re-verify with
+  // scripts/extract-cc-tokens.js when bumping the target Claude Code version.
+  assert.equal(CC_TOKENS.size, 55);
+  // Canaries that must be present (distinctive, low false-positive risk):
+  for (const t of [
+    "claude",
+    "claudeShimmer",
+    "diffAdded",
+    "diffRemovedWord",
+    "rate_limit_fill",
+    "red_FOR_SUBAGENTS_ONLY",
+    "rainbow_violet_shimmer",
+  ]) {
+    assert.ok(CC_TOKENS.has(t), `expected CC_TOKENS to include "${t}"`);
+  }
+  // Phantom tokens from the docs that do NOT exist in the build:
+  for (const t of [
+    "messageActionsBackground",
+    "selectionBg",
+    "promptBorderShimmer",
+    "permissionShimmer",
+    "warningShimmer",
+    "fastModeShimmer",
+    "inactiveShimmer",
+    "background",
+  ]) {
+    assert.ok(!CC_TOKENS.has(t), `expected CC_TOKENS to exclude "${t}"`);
+  }
+});
+
 // --- generated theme correctness -----------------------------------------
 
 for (const theme of listThemes()) {
