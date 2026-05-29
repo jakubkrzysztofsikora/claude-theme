@@ -1,0 +1,157 @@
+{
+  "$comment": "Curated terminal-client theme schemas + the source Claude Code / Warp key sets. Pure data: no colors, just the SHAPE of each client's theme (slot keys, output format, and a few human aliases that make deterministic key->key matching sensible). Consumed by build-vectors.js (to pre-vectorize keys) and schema-map.js (to map + emit). This file is a SCAFFOLD and is intentionally NOT in package.json's `files` allowlist.",
+  "version": 1,
+  "sources": {
+    "claude-code": {
+      "label": "Claude Code custom theme",
+      "comment": "The subset of CC_TOKENS schema-map maps FROM. Each entry carries a semantic ROLE and human ALIASES so deterministic matching can bridge naming gaps (e.g. CC `claude` -> client `accent`). Roles: accent, foreground, background, cursor, selectionBg, ansi colors (normal + bright).",
+      "keys": {
+        "claude": { "role": "accent", "aliases": ["accent", "brand", "primary", "prompt"] },
+        "text": { "role": "foreground", "aliases": ["foreground", "text", "fg"] },
+        "inverseText": { "role": "background", "aliases": ["background", "inverse", "bg"] },
+        "userMessageBackground": { "role": "background", "aliases": ["background", "bg", "base"] },
+        "success": { "role": "green", "aliases": ["green", "success", "ok"] },
+        "error": { "role": "red", "aliases": ["red", "error", "fail"] },
+        "warning": { "role": "yellow", "aliases": ["yellow", "warning", "warn"] },
+        "planMode": { "role": "blue", "aliases": ["blue", "info", "plan", "ide"] },
+        "permission": { "role": "magenta", "aliases": ["magenta", "purple", "permission"] },
+        "suggestion": { "role": "cyan", "aliases": ["cyan", "suggestion", "hint"] },
+        "subtle": { "role": "brightBlack", "aliases": ["brightBlack", "dim", "subtle", "muted", "comment"] }
+      }
+    },
+    "warp": {
+      "label": "Warp terminal theme",
+      "comment": "The Warp YAML key set buildWarpTheme emits (warp-channel.js).",
+      "keys": {
+        "accent": { "role": "accent", "aliases": ["accent", "brand", "primary"] },
+        "background": { "role": "background", "aliases": ["background", "bg", "base"] },
+        "foreground": { "role": "foreground", "aliases": ["foreground", "text", "fg"] },
+        "normal.black": { "role": "black", "aliases": ["black"] },
+        "normal.red": { "role": "red", "aliases": ["red", "error"] },
+        "normal.green": { "role": "green", "aliases": ["green", "success"] },
+        "normal.yellow": { "role": "yellow", "aliases": ["yellow", "warning"] },
+        "normal.blue": { "role": "blue", "aliases": ["blue", "info"] },
+        "normal.magenta": { "role": "magenta", "aliases": ["magenta", "purple"] },
+        "normal.cyan": { "role": "cyan", "aliases": ["cyan"] },
+        "normal.white": { "role": "white", "aliases": ["white"] },
+        "bright.black": { "role": "brightBlack", "aliases": ["brightBlack", "dim", "gray", "grey"] },
+        "bright.red": { "role": "brightRed", "aliases": ["brightRed"] },
+        "bright.green": { "role": "brightGreen", "aliases": ["brightGreen"] },
+        "bright.yellow": { "role": "brightYellow", "aliases": ["brightYellow"] },
+        "bright.blue": { "role": "brightBlue", "aliases": ["brightBlue"] },
+        "bright.magenta": { "role": "brightMagenta", "aliases": ["brightMagenta"] },
+        "bright.cyan": { "role": "brightCyan", "aliases": ["brightCyan"] },
+        "bright.white": { "role": "brightWhite", "aliases": ["brightWhite"] }
+      }
+    }
+  },
+  "clients": {
+    "alacritty": {
+      "label": "Alacritty",
+      "format": "toml",
+      "comment": "Alacritty `colors` table. Keys are emitted as a TOML document under [colors.*].",
+      "keys": {
+        "primary.background": { "role": "background", "aliases": ["background", "bg", "base"] },
+        "primary.foreground": { "role": "foreground", "aliases": ["foreground", "text", "fg"] },
+        "cursor.cursor": { "role": "accent", "aliases": ["cursor", "accent", "caret"] },
+        "normal.black": { "role": "black", "aliases": ["black"] },
+        "normal.red": { "role": "red", "aliases": ["red", "error"] },
+        "normal.green": { "role": "green", "aliases": ["green", "success"] },
+        "normal.yellow": { "role": "yellow", "aliases": ["yellow", "warning"] },
+        "normal.blue": { "role": "blue", "aliases": ["blue", "info"] },
+        "normal.magenta": { "role": "magenta", "aliases": ["magenta", "purple"] },
+        "normal.cyan": { "role": "cyan", "aliases": ["cyan"] },
+        "normal.white": { "role": "white", "aliases": ["white"] },
+        "bright.black": { "role": "brightBlack", "aliases": ["brightBlack", "dim", "gray", "grey"] },
+        "bright.red": { "role": "brightRed", "aliases": ["brightRed"] },
+        "bright.green": { "role": "brightGreen", "aliases": ["brightGreen"] },
+        "bright.yellow": { "role": "brightYellow", "aliases": ["brightYellow"] },
+        "bright.blue": { "role": "brightBlue", "aliases": ["brightBlue"] },
+        "bright.magenta": { "role": "brightMagenta", "aliases": ["brightMagenta"] },
+        "bright.cyan": { "role": "brightCyan", "aliases": ["brightCyan"] },
+        "bright.white": { "role": "brightWhite", "aliases": ["brightWhite"] }
+      }
+    },
+    "kitty": {
+      "label": "Kitty",
+      "format": "kitty-conf",
+      "comment": "Kitty conf `key value` lines. color0..color15 are the 16 ANSI slots.",
+      "keys": {
+        "background": { "role": "background", "aliases": ["background", "bg", "base"] },
+        "foreground": { "role": "foreground", "aliases": ["foreground", "text", "fg"] },
+        "cursor": { "role": "accent", "aliases": ["cursor", "accent", "caret"] },
+        "selection_background": { "role": "selectionBg", "aliases": ["selection", "selectionBg", "highlight"] },
+        "color0": { "role": "black", "aliases": ["black"] },
+        "color1": { "role": "red", "aliases": ["red", "error"] },
+        "color2": { "role": "green", "aliases": ["green", "success"] },
+        "color3": { "role": "yellow", "aliases": ["yellow", "warning"] },
+        "color4": { "role": "blue", "aliases": ["blue", "info"] },
+        "color5": { "role": "magenta", "aliases": ["magenta", "purple"] },
+        "color6": { "role": "cyan", "aliases": ["cyan"] },
+        "color7": { "role": "white", "aliases": ["white"] },
+        "color8": { "role": "brightBlack", "aliases": ["brightBlack", "dim", "gray", "grey"] },
+        "color9": { "role": "brightRed", "aliases": ["brightRed"] },
+        "color10": { "role": "brightGreen", "aliases": ["brightGreen"] },
+        "color11": { "role": "brightYellow", "aliases": ["brightYellow"] },
+        "color12": { "role": "brightBlue", "aliases": ["brightBlue"] },
+        "color13": { "role": "brightMagenta", "aliases": ["brightMagenta"] },
+        "color14": { "role": "brightCyan", "aliases": ["brightCyan"] },
+        "color15": { "role": "brightWhite", "aliases": ["brightWhite"] }
+      }
+    },
+    "iterm2": {
+      "label": "iTerm2",
+      "format": "iterm-plist",
+      "comment": "iTerm2 .itermcolors is an XML plist of NSColor dicts (sRGB 0..1 components). Color slots map to Ansi 0..15 + Background/Foreground/Cursor.",
+      "keys": {
+        "Background Color": { "role": "background", "aliases": ["background", "bg", "base"] },
+        "Foreground Color": { "role": "foreground", "aliases": ["foreground", "text", "fg"] },
+        "Cursor Color": { "role": "accent", "aliases": ["cursor", "accent", "caret"] },
+        "Selection Color": { "role": "selectionBg", "aliases": ["selection", "selectionBg", "highlight"] },
+        "Ansi 0 Color": { "role": "black", "aliases": ["black"] },
+        "Ansi 1 Color": { "role": "red", "aliases": ["red", "error"] },
+        "Ansi 2 Color": { "role": "green", "aliases": ["green", "success"] },
+        "Ansi 3 Color": { "role": "yellow", "aliases": ["yellow", "warning"] },
+        "Ansi 4 Color": { "role": "blue", "aliases": ["blue", "info"] },
+        "Ansi 5 Color": { "role": "magenta", "aliases": ["magenta", "purple"] },
+        "Ansi 6 Color": { "role": "cyan", "aliases": ["cyan"] },
+        "Ansi 7 Color": { "role": "white", "aliases": ["white"] },
+        "Ansi 8 Color": { "role": "brightBlack", "aliases": ["brightBlack", "dim", "gray", "grey"] },
+        "Ansi 9 Color": { "role": "brightRed", "aliases": ["brightRed"] },
+        "Ansi 10 Color": { "role": "brightGreen", "aliases": ["brightGreen"] },
+        "Ansi 11 Color": { "role": "brightYellow", "aliases": ["brightYellow"] },
+        "Ansi 12 Color": { "role": "brightBlue", "aliases": ["brightBlue"] },
+        "Ansi 13 Color": { "role": "brightMagenta", "aliases": ["brightMagenta"] },
+        "Ansi 14 Color": { "role": "brightCyan", "aliases": ["brightCyan"] },
+        "Ansi 15 Color": { "role": "brightWhite", "aliases": ["brightWhite"] }
+      }
+    },
+    "windows-terminal": {
+      "label": "Windows Terminal",
+      "format": "json",
+      "comment": "Windows Terminal scheme object (profiles.json `schemes[]` entry). Emitted as a standalone JSON object.",
+      "keys": {
+        "background": { "role": "background", "aliases": ["background", "bg", "base"] },
+        "foreground": { "role": "foreground", "aliases": ["foreground", "text", "fg"] },
+        "cursorColor": { "role": "accent", "aliases": ["cursor", "accent", "caret"] },
+        "selectionBackground": { "role": "selectionBg", "aliases": ["selection", "selectionBg", "highlight"] },
+        "black": { "role": "black", "aliases": ["black"] },
+        "red": { "role": "red", "aliases": ["red", "error"] },
+        "green": { "role": "green", "aliases": ["green", "success"] },
+        "yellow": { "role": "yellow", "aliases": ["yellow", "warning"] },
+        "blue": { "role": "blue", "aliases": ["blue", "info"] },
+        "purple": { "role": "magenta", "aliases": ["magenta", "purple"] },
+        "cyan": { "role": "cyan", "aliases": ["cyan"] },
+        "white": { "role": "white", "aliases": ["white"] },
+        "brightBlack": { "role": "brightBlack", "aliases": ["brightBlack", "dim", "gray", "grey"] },
+        "brightRed": { "role": "brightRed", "aliases": ["brightRed"] },
+        "brightGreen": { "role": "brightGreen", "aliases": ["brightGreen"] },
+        "brightYellow": { "role": "brightYellow", "aliases": ["brightYellow"] },
+        "brightBlue": { "role": "brightBlue", "aliases": ["brightBlue"] },
+        "brightPurple": { "role": "brightMagenta", "aliases": ["brightMagenta", "brightPurple"] },
+        "brightCyan": { "role": "brightCyan", "aliases": ["brightCyan"] },
+        "brightWhite": { "role": "brightWhite", "aliases": ["brightWhite"] }
+      }
+    }
+  }
+}
