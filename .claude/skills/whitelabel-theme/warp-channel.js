@@ -386,14 +386,16 @@ function removeThemeValue(text, loc, { removeEmptySection } = {}) {
   return out;
 }
 
-/** Build the Warp activation TOML line (matches Warp's native inline-table form). */
+/**
+ * Build the Warp activation TOML line. Warp's `theme` setting is a plain STRING that
+ * names a theme (Warp resolves it by the `name:` field of a ~/.warp/themes/*.yaml).
+ * The inline-table form is rejected ("Invalid value for 'theme'"), so we emit the
+ * bare-string form. `yamlPath` is unused (kept for signature stability).
+ */
 function warpActivationLine(theme, yamlPath) {
-  const slug = "custom_" + String(theme.id).replace(/-/g, "_");
   const name =
     '"' + String(theme.name).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
-  const p =
-    '"' + String(yamlPath).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
-  return `theme = { ${slug} = { name = ${name}, path = ${p} } }`;
+  return `theme = ${name}`;
 }
 
 module.exports = {

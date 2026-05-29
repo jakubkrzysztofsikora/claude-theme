@@ -170,14 +170,16 @@ test("buildWarpTheme: ansi: terminal color falls back to the specific tokens.col
 });
 
 // --- warpActivationLine: slug derivation + escaping --------------------------
-test("warpActivationLine: slug + escaped name/path", () => {
+test("warpActivationLine: bare-string theme name, TOML-escaped", () => {
   const line = warp.warpActivationLine(
     { id: "forest-canopy", name: 'My "Theme"' },
     "/a/b c.yaml",
   );
-  assert.ok(line.includes("custom_forest_canopy = {"), "slug: - -> _");
-  assert.ok(line.includes('name = "My \\"Theme\\""'), "TOML-escaped name");
-  assert.ok(line.includes('path = "/a/b c.yaml"'), "path emitted");
+  assert.equal(
+    line,
+    'theme = "My \\"Theme\\""',
+    "bare-string form, escaped quotes",
+  );
 });
 
 // --- regression (harness MAJOR): empty bare value must NOT swallow sibling ---

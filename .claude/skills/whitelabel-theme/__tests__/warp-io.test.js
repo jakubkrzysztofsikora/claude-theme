@@ -146,7 +146,7 @@ test("apply -> edit lines above section -> reset restores correct value", () => 
     out.includes('theme = "Base16 Macintosh"'),
     "original value restored",
   );
-  assert.ok(!out.includes("custom_forest_canopy"), "our value removed");
+  assert.ok(!out.includes('theme = "Forest Canopy"'), "our value removed");
 });
 
 // 8 — fresh machine (no ~/.warp): apply creates minimal file; reset -> no theme key.
@@ -156,11 +156,11 @@ test("fresh machine: apply creates minimal settings; reset removes our section",
   assert.equal(res.status, 0);
   const s = read(settingsPath(home));
   assert.ok(
-    s.includes("[appearance.themes]") && s.includes("custom_forest_canopy"),
+    s.includes("[appearance.themes]") && s.includes('theme = "Forest Canopy"'),
   );
   assert.equal(run(home, ["reset"]).status, 0);
   assert.ok(
-    !read(settingsPath(home)).includes("custom_forest_canopy"),
+    !read(settingsPath(home)).includes('theme = "Forest Canopy"'),
     "theme removed",
   );
   assert.ok(
@@ -216,10 +216,10 @@ test("warp dir exists but no settings.toml -> minimal file created", () => {
   assert.equal(run(home, ["apply", NATURE]).status, 0);
   const s = read(settingsPath(home));
   assert.ok(
-    s.includes("[appearance.themes]") && s.includes("custom_forest_canopy"),
+    s.includes("[appearance.themes]") && s.includes('theme = "Forest Canopy"'),
   );
   assert.equal(run(home, ["reset"]).status, 0);
-  assert.ok(!read(settingsPath(home)).includes("custom_forest_canopy"));
+  assert.ok(!read(settingsPath(home)).includes('theme = "Forest Canopy"'));
 });
 
 // 30 (unreadable) — chmod 0000 settings.toml -> not activated, file untouched.
@@ -271,7 +271,7 @@ test("concurrency: settings changed mid-apply -> not activated, edit survives", 
   assert.equal(res.status, 0, "apply still exits 0");
   assert.ok(/NOT activated/.test(res.out), "prints not-activated notice");
   assert.ok(
-    /theme = \{ custom_forest_canopy/.test(res.out),
+    /theme = "Forest Canopy"/.test(res.out),
     "prints paste-line",
   );
   const s = read(settingsPath(home));
@@ -279,7 +279,7 @@ test("concurrency: settings changed mid-apply -> not activated, edit survives", 
     s.includes("# concurrent edit"),
     "concurrent edit survives (not clobbered)",
   );
-  assert.ok(!s.includes("custom_forest_canopy"), "our theme NOT written");
+  assert.ok(!s.includes('theme = "Forest Canopy"'), "our theme NOT written");
   assert.ok(
     fs.existsSync(yamlPath(home, "forest-canopy")),
     "YAML still written",
@@ -330,7 +330,7 @@ test("additive insert: no [appearance.themes] -> append; reset removes exactly",
   assert.ok(after.startsWith(seed), "original content preserved at top");
   assert.ok(
     after.includes("[appearance.themes]") &&
-      after.includes("custom_forest_canopy"),
+      after.includes('theme = "Forest Canopy"'),
   );
   run(home, ["reset"]);
   assert.equal(

@@ -1559,6 +1559,9 @@ function writeWarpTheme(theme, ccTheme) {
  */
 function activateWarpTheme(theme, yamlPath) {
   const statement = warp.warpActivationLine(theme, yamlPath);
+  // The value portion (e.g. `"Circit"`) — stored in state so reset can recognise our
+  // own value format-agnostically, and used for the no-op check.
+  const activationValue = statement.slice(statement.indexOf("=") + 1).trim();
   const readState = () => {
     try {
       return JSON.parse(fs.readFileSync(WARP_STATE, "utf8"));
@@ -1578,6 +1581,7 @@ function activateWarpTheme(theme, yamlPath) {
     writeJsonAtomic(WARP_STATE, {
       activeId: theme.id,
       yamlPath,
+      activationValue,
       originalValueText: null,
       sectionInserted: true,
     });
@@ -1607,10 +1611,7 @@ function activateWarpTheme(theme, yamlPath) {
       : null;
 
   // No-op: current value already equals what we'd write.
-  if (
-    loc.kind === "found" &&
-    loc.value.trim() === statement.slice(statement.indexOf("=") + 1).trim()
-  ) {
+  if (loc.kind === "found" && loc.value.trim() === activationValue) {
     return { activated: true, line: statement };
   }
 
@@ -1640,6 +1641,7 @@ function activateWarpTheme(theme, yamlPath) {
   writeJsonAtomic(WARP_STATE, {
     activeId: theme.id,
     yamlPath,
+    activationValue,
     originalValueText,
     sectionInserted: prev ? prev.sectionInserted : sectionInserted,
   });
@@ -1674,9 +1676,12 @@ function deactivateWarpTheme(slugHint) {
     const text = fs.readFileSync(WARP_SETTINGS, "utf8");
     const loc = warp.locateThemeValue(text);
     if (loc.kind === "found") {
-      const ours =
-        loc.value.includes(`custom_${activeId.replace(/-/g, "_")}`) &&
-        (state.yamlPath ? loc.value.includes(state.yamlPath) : true);
+      // We own the current value iff it byte-matches what we wrote (stored in state).
+      // Falls back to the legacy inline-table marker for state written before
+      // activationValue existed.
+      const ours = state.activationValue
+        ? loc.value.trim() === state.activationValue
+        : loc.value.includes(`custom_${activeId.replace(/-/g, "_")}`);
       if (ours) {
         let out;
         if (state.originalValueText != null) {
