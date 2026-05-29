@@ -3,12 +3,14 @@
 > **Personalize Claude everywhere — one theme restyles the claude.ai web UI, the
 > Claude Code CLI, and your Warp terminal. Author once, apply across all three.**
 
-**Why:** native Claude gives you only Light / Dark, and Claude Code's terminal UI colors
-are otherwise hard to fully control — so if you want a specific palette, accessible
-high-contrast, or a consistent look across the browser and your terminal, there's no
-built-in way. This is a zero-dependency CLI that compiles a single theme file into a
-browser extension + Claude Code theme + Warp theme, with 8 built-in themes and a
-`init`-to-author workflow.
+**Why:** every other Claude theming option styles a *single* surface — a VS Code color
+theme, a Claude Code preset, or a browser userstyle. None of them give you **one palette
+that follows you across all three places you actually use Claude**: the claude.ai web UI,
+the Claude Code CLI, and your Warp terminal. Native Claude only offers Light / Dark, and
+Claude Code's terminal colors are otherwise hard to fully control. This is a
+zero-dependency CLI that compiles **a single theme file** into a browser extension + a
+Claude Code theme + a Warp theme — author once, apply everywhere — with 8 built-in themes,
+accessible high-contrast/colorblind bases, and an `init`-to-author workflow.
 
 > ⚠️ **Unofficial.** This is an independent, community project — not affiliated with,
 > endorsed by, or supported by Anthropic. "Claude" is a trademark of Anthropic.
@@ -32,6 +34,25 @@ browser extension + Claude Code theme + Warp theme, with 8 built-in themes and a
 
 ---
 
+## Why this vs. other options
+
+Other Claude theming projects each cover **one surface**. This is the only one where you
+**author a theme once and it applies across the claude.ai web UI, the Claude Code CLI, and
+Warp** — from a single `theme.json`.
+
+| | claude.ai web | Claude Code CLI | Warp / terminal | Author once | a11y / high-contrast | Zero-dependency |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **This tool** (`claude-whitelabel-themes`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| [`ashwingopalsamy/claude-code-theme`](https://github.com/ashwingopalsamy/claude-code-theme) (VS Code theme) | ❌ | ❌ | ❌ | ❌ | ❌ | n/a |
+| [`rafsanmuhammed/claude-code-themes`](https://github.com/rafsanmuhammed/claude-code-themes) | ❌ | ✅ | ❌ | ❌ | ❌ | n/a |
+| userstyles / [Stylus](https://github.com/openstyles/stylus) (browser userstyle) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+Surface coverage is the differentiator: the same palette, logo, and font follow you from
+the browser into the terminal, so your Claude looks consistent wherever you work — and the
+built-in high-contrast/colorblind bases keep it readable.
+
+---
+
 ## See it
 
 <!--
@@ -50,8 +71,9 @@ browser extension + Claude Code theme + Warp theme, with 8 built-in themes and a
 
 ## Built-in themes
 
-Eight themes spanning dark, light, high-contrast, and monochrome — each one self-contained
-in [`themes/<id>/theme.json`](themes/). Apply any by **id**: `claude-theme apply <id>`.
+Eleven themes spanning dark, light, high-contrast, colorblind-safe, and monochrome — each
+self-contained in [`themes/<id>/theme.json`](themes/). Apply any by **id**:
+`claude-theme apply <id>`.
 
 | Theme (`id`) | Background | Accent | Tags |
 |---|---|---|---|
@@ -59,6 +81,9 @@ in [`themes/<id>/theme.json`](themes/). Apply any by **id**: `claude-theme apply
 | **Midnight Forge** (`midnight-forge`) | `#0F1115` | `#0192F4` | dark, professional, ide-inspired |
 | **Forest Canopy** (`forest-canopy`) | `#0F1F17` | `#4ADE80` | dark, nature, green |
 | **A11y First** (`a11y-first`) | `#000000` | `#00CCFF` | high-contrast, accessibility, wcag-aaa |
+| **High Contrast Pro** (`high-contrast-pro`) | `#000000` | `#FFFFFF` | dark, high-contrast, accessibility |
+| **Daltonized Dark** (`daltonized-dark`) | `#0B0E14` | `#648FFF` | dark, daltonized, colorblind-safe |
+| **Daltonized Light** (`daltonized-light`) | `#FFFFFF` | `#3A56D4` | light, daltonized, colorblind-safe |
 | **Clean Slate** (`clean-slate`) | `#FAFAF9` | `#2563EB` | light, minimal, professional |
 | **Parchment** (`parchment`) | `#F5F0E8` | `#A07818` | light, warm, sepia |
 | **Terracotta Pro** (`terracotta-pro`) | `#FDF6F0` | `#9A4822` | light, warm, earthy |
@@ -66,6 +91,21 @@ in [`themes/<id>/theme.json`](themes/). Apply any by **id**: `claude-theme apply
 
 > Run `claude-theme list` for the live table, or `claude-theme preview <id>` to see a theme
 > in a mock UI before applying. Each theme dir has its own `theme.json` + `README.md`.
+
+### Accessibility
+
+Claude Code's terminal UI uses hardcoded colors that ordinary terminal themes can't
+override, which is a documented accessibility gap
+([anthropics/claude-code#34702](https://github.com/anthropics/claude-code/issues/34702)),
+and its near-white user-input highlight can wash out text on bright themes
+([#8504](https://github.com/anthropics/claude-code/issues/8504)). These presets target
+both — and `deriveAll` always sets `userMessageBackground` from the theme background, so
+the input block is never an unreadable white box:
+
+- **High Contrast Pro** — pure-black/pure-white, WCAG AAA (21:1 text contrast).
+- **Daltonized Dark / Light** — colorblind-safe (Okabe-Ito / IBM blue+orange+yellow), so
+  status colors stay distinguishable for red-green color vision deficiency.
+- **A11y First** — WCAG AAA high-contrast on pure black.
 
 ---
 
@@ -129,8 +169,11 @@ node .claude/skills/whitelabel-theme/build-theme.js list
 ### Bidirectional Terminal + Browser Synchronization
 Changes made in your terminal are instantly reflected in the browser. The browser extension listens for theme updates and hot-reloads without a page refresh. Edit your `theme.json`, save, and watch Claude transform in real time.
 
-### 8 Built-In Themes
-Every theme ships with a complete color system (backgrounds, text, accents, semantic colors), a custom SVG logo, and a hand-picked Google Font. All themes are WCAG AA compliant at minimum.
+### 11 Built-In Themes
+Every theme ships with a complete color system (backgrounds, text, accents, semantic colors), a custom SVG logo, and a hand-picked Google Font. All themes are WCAG AA compliant at minimum, and the bundle includes high-contrast (AAA) and colorblind-safe (daltonized) presets — see [Accessibility](#accessibility).
+
+### Resilient to claude.ai changes (best-effort)
+The browser extension themes claude.ai by injecting **CSS custom properties on `:root`** (not brittle class selectors), carries a schema version, and **self-heals** — re-injecting on SPA navigation and warning once (never crashing) if claude.ai's markup changes. claude.ai is a third-party app we don't control, so a major redesign may still require an extension update; if your theme stops applying, please [open an issue](https://github.com/jakubkrzysztofsikora/claude-theme/issues).
 
 ### Community Theme Marketplace
 Browse, preview, and install themes contributed by the community at our [GitHub Pages marketplace](https://jakubkrzysztofsikora.github.io/claude-theme/). Submit your own themes via pull request.

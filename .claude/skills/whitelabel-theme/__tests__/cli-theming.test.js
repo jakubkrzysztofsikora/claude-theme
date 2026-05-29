@@ -25,9 +25,17 @@ const {
   lighten,
   pickBase,
   CC_TOKENS,
+  VALID_BASES,
   CLAUDE_THEMES_DIR,
   THEMES_DIR,
 } = require(BUILD);
+
+// Mirror buildClaudeCodeTheme's base resolution: an explicit, valid terminal.base wins;
+// otherwise the tag-inferred pickBase. (Daltonized/ansi a11y themes set an explicit base.)
+function expectedBase(theme) {
+  const b = theme.terminal && theme.terminal.base;
+  return b && VALID_BASES.includes(b) ? b : pickBase(theme);
+}
 
 // A minimal valid theme; spread + override per test.
 function validBase(extra = {}) {
@@ -170,7 +178,7 @@ for (const theme of listThemes()) {
     }
     assert.ok(!("messageActionsBackground" in out.overrides));
     assert.ok(!("selectionBg" in out.overrides));
-    assert.ok(out.base === pickBase(theme));
+    assert.ok(out.base === expectedBase(theme));
     assert.equal(out.name, theme.name);
 
     const golden = JSON.parse(
