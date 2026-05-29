@@ -22,6 +22,7 @@ const {
   mix,
   lighten,
   relLuminance,
+  contrastFloor,
 } = require("./cli-derive.js");
 
 const MIN_ANSI = 3.0; // documented anchor floor (unused as a hard bound — see anchors)
@@ -75,7 +76,11 @@ function buildWarpTheme(theme, ccTheme) {
     resolveHex(c.background),
   );
   if (!bg) throw new Error("buildWarpTheme: unresolved background"); // tripwire; can't happen for a valid theme
-  const fg = resolveHex(t.assistantColor, resolveHex(c.textPrimary));
+  // Foreground is terminal text — floor it to AA (4.5:1) vs the resolved background so a
+  // theme whose assistant colour is low-contrast on its terminal bg (e.g. a light-tagged
+  // theme with a dark terminal.backgroundColor) still renders readable text in Warp.
+  let fg = resolveHex(t.assistantColor, resolveHex(c.textPrimary));
+  if (fg) fg = contrastFloor(fg, bg, 4.5);
 
   // slot() — first defined colour wins; undefined => caller omits the key.
   const slot = (...chain) =>

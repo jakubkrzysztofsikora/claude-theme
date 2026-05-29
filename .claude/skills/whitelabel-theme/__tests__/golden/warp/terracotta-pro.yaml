@@ -1,7 +1,7 @@
 name: "Terracotta Pro"
 accent: '#fdf6f0'
 background: '#3d2b1f'
-foreground: '#9a4822'
+foreground: '#c2917a'
 details: darker
 terminal_colors:
   normal:

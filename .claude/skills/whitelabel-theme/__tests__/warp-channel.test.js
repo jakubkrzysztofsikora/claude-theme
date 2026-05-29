@@ -115,8 +115,24 @@ for (const theme of listThemes()) {
       `polarity black=${lb} white=${lw} (${theme.id})`,
     );
     assert.ok(lw - lb > 0.3, `separation ${lw - lb} (${theme.id})`);
+
+    // Foreground must be readable (AA >= 4.5:1) vs the Warp background for EVERY theme,
+    // including light-tagged themes with a dark terminal.backgroundColor (terracotta-pro).
+    const fg = get("foreground");
+    assert.ok(
+      contrastRatio(fg, expectBg) >= 4.5,
+      `fg contrast ${contrastRatio(fg, expectBg)} >= 4.5 (${theme.id})`,
+    );
   });
 }
+
+// --- case 27: every bundled theme passes validateTheme with its deriveAll setting --
+test("all bundled themes pass validateTheme", () => {
+  const { validateTheme } = require(path.join(SKILL_DIR, "build-theme.js"));
+  for (const theme of listThemes()) {
+    assert.deepEqual(validateTheme(theme), [], `validate ${theme.id}`);
+  }
+});
 
 // --- case 21: bright = lighten(normal, 0.25) (assert the AMOUNT, not just lighter) --
 test("buildWarpTheme: bright.* === lighten(normal.*, 0.25)", () => {
