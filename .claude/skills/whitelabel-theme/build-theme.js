@@ -25,6 +25,7 @@ const http = require("http");
 const crypto = require("crypto");
 const { URL } = require("url");
 const { deriveTokens } = require("./cli-derive.js");
+const warp = require("./warp-channel.js");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -39,6 +40,14 @@ const SETTINGS_DIR = path.join(HOME, ".claude");
 const SETTINGS_PATH = path.join(SETTINGS_DIR, "settings.json");
 // Claude Code custom themes live here, distinct from THEMES_DIR (the repo source dir).
 const CLAUDE_THEMES_DIR = path.join(SETTINGS_DIR, "themes");
+
+// Warp terminal channel. Uses the same HOME constant the CC paths use, so the
+// integration tests (which set HOME to a temp dir) hit a sandboxed ~/.warp.
+const WARP_DIR = path.join(HOME, ".warp");
+const WARP_THEMES_DIR = path.join(WARP_DIR, "themes");
+const WARP_SETTINGS = path.join(WARP_DIR, "settings.toml");
+const WARP_STATE = path.join(WARP_THEMES_DIR, ".whitelabel-state.json");
+const WARP_BAK = path.join(WARP_DIR, "settings.toml.whitelabel.bak");
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 // Hex in colorValue form: 3- or 6-digit. (tokens.color stays 6-digit only.)
@@ -260,6 +269,34 @@ function writeJsonAtomic(filePath, data) {
   }
   const tmp = `${filePath}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", "utf8");
+  fs.renameSync(tmp, filePath);
+}
+
+/**
+ * Atomically write text to a file, preserving its mode. Temp lives in the SAME
+ * directory so the rename stays intra-filesystem. Distinct from writeJsonAtomic
+ * (which JSON-stringifies and does not preserve mode). Used for ~/.warp/settings.toml,
+ * a file we do not own — so we must not widen its permissions.
+ */
+function writeTextAtomic(filePath, text) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  let mode;
+  try {
+    mode = fs.statSync(filePath).mode;
+  } catch {
+    /* new file */
+  }
+  fs.writeFileSync(tmp, text, "utf8");
+  if (mode !== undefined) fs.chmodSync(tmp, mode);
+  // Test-only fault seam (inert in production): simulate a crash after the temp is
+  // written but before the rename of settings.toml, to prove no partial/torn file.
+  if (
+    process.env.WL_WARP_FAULT === "crash-before-rename" &&
+    filePath === WARP_SETTINGS
+  ) {
+    throw new Error("WL_WARP_FAULT: crash-before-rename");
+  }
   fs.renameSync(tmp, filePath);
 }
 
@@ -1467,6 +1504,185 @@ function cmdCompile(themeFilePath) {
   return files;
 }
 
+// ---------------------------------------------------------------------------
+// Warp terminal channel (I/O). Pure logic lives in warp-channel.js; this layer
+// does filesystem work and the line-preserving activation of ~/.warp/settings.toml.
+// ---------------------------------------------------------------------------
+
+function sha256(s) {
+  return crypto.createHash("sha256").update(s, "utf8").digest("hex");
+}
+
+/** Write ~/.warp/themes/<id>.yaml from the theme + its built CC theme. Returns the path. */
+function writeWarpTheme(theme, ccTheme) {
+  if (typeof theme.id !== "string" || !SLUG_RE.test(theme.id)) {
+    throw new Error(`Unsafe theme id for Warp path: "${theme.id}"`);
+  }
+  fs.mkdirSync(WARP_THEMES_DIR, { recursive: true });
+  const yamlPath = path.join(WARP_THEMES_DIR, `${theme.id}.yaml`);
+  writeTextAtomic(yamlPath, warp.buildWarpTheme(theme, ccTheme));
+  return yamlPath;
+}
+
+/**
+ * Activate the Warp theme by editing ~/.warp/settings.toml in place (line-preserving).
+ * Returns { activated, reason?, line } — never throws on the expected branches.
+ * State model: capture the user's true original ONCE (first apply), carry it forward
+ * after; abort if settings.toml changed under us (Warp owns the file at runtime).
+ */
+function activateWarpTheme(theme, yamlPath) {
+  const statement = warp.warpActivationLine(theme, yamlPath);
+  const readState = () => {
+    try {
+      return JSON.parse(fs.readFileSync(WARP_STATE, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+
+  // Branch 1: no settings.toml -> create a minimal one (we own the section).
+  if (!fs.existsSync(WARP_SETTINGS)) {
+    const eol = "\n";
+    fs.mkdirSync(WARP_THEMES_DIR, { recursive: true });
+    writeTextAtomic(
+      WARP_SETTINGS,
+      `[appearance.themes]${eol}${statement}${eol}`,
+    );
+    writeJsonAtomic(WARP_STATE, {
+      activeId: theme.id,
+      yamlPath,
+      originalValueText: null,
+      sectionInserted: true,
+    });
+    return { activated: true, line: statement };
+  }
+
+  let text;
+  try {
+    text = fs.readFileSync(WARP_SETTINGS, "utf8");
+  } catch {
+    return { activated: false, reason: "unreadable", line: statement };
+  }
+  const hash0 = sha256(text);
+  const eol = warp.detectEol(text);
+  const loc = warp.locateThemeValue(text);
+
+  if (loc.kind === "malformed" || loc.kind === "duplicate") {
+    return { activated: false, reason: loc.kind, line: statement };
+  }
+
+  // Idempotency / baseline guard: capture original only on first apply; carry forward.
+  const prev = readState();
+  const originalValueText = prev
+    ? prev.originalValueText
+    : loc.kind === "found"
+      ? loc.value
+      : null;
+
+  // No-op: current value already equals what we'd write.
+  if (
+    loc.kind === "found" &&
+    loc.value.trim() === statement.slice(statement.indexOf("=") + 1).trim()
+  ) {
+    return { activated: true, line: statement };
+  }
+
+  // Pre-automation backup (once).
+  if (!fs.existsSync(WARP_BAK)) writeTextAtomic(WARP_BAK, text);
+
+  // Test-only seam: simulate Warp writing concurrently between our read and write.
+  if (process.env.WL_WARP_FAULT === "mutate-settings") {
+    fs.appendFileSync(WARP_SETTINGS, `${eol}# concurrent edit`);
+  }
+
+  // Concurrency abort: re-read; if it changed since hash0, leave it (and our YAML) alone.
+  if (sha256(fs.readFileSync(WARP_SETTINGS, "utf8")) !== hash0) {
+    return { activated: false, reason: "changed", line: statement };
+  }
+
+  let newText;
+  let sectionInserted = false;
+  if (loc.kind === "found") {
+    newText = warp.replaceThemeValue(text, loc, loc.indent + statement);
+  } else {
+    const ins = warp.insertThemeKey(text, loc, statement, eol);
+    newText = ins.text;
+    sectionInserted = ins.sectionInserted;
+  }
+  writeTextAtomic(WARP_SETTINGS, newText);
+  writeJsonAtomic(WARP_STATE, {
+    activeId: theme.id,
+    yamlPath,
+    originalValueText,
+    sectionInserted: prev ? prev.sectionInserted : sectionInserted,
+  });
+  return { activated: true, line: statement };
+}
+
+/**
+ * Reset the Warp channel: restore the pre-automation theme value (only if the current
+ * value is still ours), delete our YAML, and clear state. `slugHint` is the CC
+ * `custom:<id>` slug captured by cmdReset before it clears the CC theme — used to clean
+ * an orphaned YAML when no state file exists.
+ */
+function deactivateWarpTheme(slugHint) {
+  let state = null;
+  try {
+    state = JSON.parse(fs.readFileSync(WARP_STATE, "utf8"));
+  } catch {
+    /* no state */
+  }
+  const activeId =
+    state && SLUG_RE.test(state.activeId)
+      ? state.activeId
+      : SLUG_RE.test(slugHint || "")
+        ? slugHint
+        : null;
+  if (!activeId) return;
+
+  const yamlPath = path.join(WARP_THEMES_DIR, `${activeId}.yaml`);
+
+  // Restore settings.toml only if the live value is still the one we wrote.
+  if (state && fs.existsSync(WARP_SETTINGS)) {
+    const text = fs.readFileSync(WARP_SETTINGS, "utf8");
+    const loc = warp.locateThemeValue(text);
+    if (loc.kind === "found") {
+      const ours =
+        loc.value.includes(`custom_${activeId.replace(/-/g, "_")}`) &&
+        (state.yamlPath ? loc.value.includes(state.yamlPath) : true);
+      if (ours) {
+        let out;
+        if (state.originalValueText != null) {
+          out = warp.replaceThemeValue(
+            text,
+            loc,
+            loc.indent + `theme = ${state.originalValueText}`,
+          );
+        } else {
+          out = warp.removeThemeValue(text, loc, {
+            removeEmptySection: state.sectionInserted,
+          });
+        }
+        writeTextAtomic(WARP_SETTINGS, out);
+      }
+    }
+  }
+
+  // Delete our YAML (only within WARP_THEMES_DIR) and the state file.
+  if (path.dirname(yamlPath) === WARP_THEMES_DIR) {
+    try {
+      fs.unlinkSync(yamlPath);
+    } catch {
+      /* already gone */
+    }
+  }
+  try {
+    fs.unlinkSync(WARP_STATE);
+  } catch {
+    /* already gone */
+  }
+}
+
 /**
  * Command: apply — Compile theme + update CLI settings + print instructions.
  */
@@ -1543,6 +1759,10 @@ function cmdApply(themeFilePath) {
   // Compile the extension (browser half)
   cmdCompile(themeFilePath);
 
+  // Warp terminal channel: write the YAML (always) + activate it.
+  const warpYamlPath = writeWarpTheme(theme, ccTheme);
+  const warpRes = activateWarpTheme(theme, warpYamlPath);
+
   // Print success message
   // eslint-disable-next-line no-console
   console.log("");
@@ -1575,6 +1795,31 @@ function cmdApply(themeFilePath) {
   console.log("    4. Visit https://claude.ai to see your theme");
   // eslint-disable-next-line no-console
   console.log("");
+  // eslint-disable-next-line no-console
+  console.log("  Warp terminal:");
+  if (warpRes.activated) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `    • Theme written to ${warpYamlPath} and activated in settings.toml.`,
+    );
+    // eslint-disable-next-line no-console
+    console.log(
+      "    • Reload/restart Warp to see the new background + palette.",
+    );
+  } else {
+    log(
+      "warn",
+      `  Warp theme written to ${warpYamlPath} but NOT activated (${warpRes.reason}).`,
+    );
+    // eslint-disable-next-line no-console
+    console.log(
+      "    Close Warp and re-run, or paste this into ~/.warp/settings.toml under [appearance.themes]:",
+    );
+    // eslint-disable-next-line no-console
+    console.log(`      ${warpRes.line}`);
+  }
+  // eslint-disable-next-line no-console
+  console.log("");
 }
 
 /**
@@ -1584,12 +1829,27 @@ function cmdApply(themeFilePath) {
  * like "dark" are left untouched.
  */
 function cmdReset() {
-  if (!fs.existsSync(SETTINGS_PATH)) {
+  // Warp cleanup runs FIRST and unconditionally — capture the CC slug while it still
+  // exists, so a user who already cleared the CC theme via /theme can still clean up
+  // the orphaned Warp YAML + restore settings.toml. readJson is called once here and
+  // reused below (it returns null for BOTH absent and unparseable, so split them).
+  const settingsExists = fs.existsSync(SETTINGS_PATH);
+  const settings = settingsExists ? readJson(SETTINGS_PATH) : null;
+  let slugHint;
+  if (
+    settings &&
+    typeof settings.theme === "string" &&
+    settings.theme.startsWith("custom:")
+  ) {
+    slugHint = settings.theme.slice("custom:".length);
+  }
+  deactivateWarpTheme(slugHint);
+
+  // CC reset (behaviour unchanged): absent settings.json -> exit 0; unparseable -> exit 1.
+  if (!settingsExists) {
     log("info", "No settings.json found; nothing to reset.");
     return;
   }
-
-  const settings = readJson(SETTINGS_PATH);
   if (settings === null) {
     log(
       "error",
@@ -1985,6 +2245,7 @@ function cmdInit(themeName) {
       color: {
         brandPrimary: "#6366f1",
         brandSecondary: "#818cf8",
+        brandAccent: "#818cf8",
         background: "#0f0f23",
         surface: "#1a1a2e",
         surfaceHover: "#252545",
@@ -2012,8 +2273,13 @@ function cmdInit(themeName) {
       },
     },
     terminal: {
+      deriveAll: true,
+      base: "dark",
       userColor: "#6366f1",
       assistantColor: "#e0e0ff",
+      systemColor: "#818cf8",
+      errorColor: "#ef4444",
+      successColor: "#22c55e",
       backgroundColor: "#0f0f23",
       promptColor: "#818cf8",
     },
