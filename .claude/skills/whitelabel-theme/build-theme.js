@@ -23,6 +23,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
+const { spawnSync } = require("child_process");
 const { URL } = require("url");
 const { deriveTokens } = require("./cli-derive.js");
 const warp = require("./warp-channel.js");
@@ -2386,6 +2387,73 @@ function resolveThemeArg(arg) {
   return asPath;
 }
 
+/**
+ * Look up an executable named `name` on PATH WITHOUT a shell (no `which`/`where`,
+ * no shell metacharacter exposure). Returns the absolute path or null. Honors
+ * PATHEXT on Windows so `claude.cmd`/`claude.exe` resolve. Skips non-absolute
+ * PATH entries (a relative entry would resolve against CWD — an injection vector).
+ */
+function findOnPath(name) {
+  const PATH = process.env.PATH || "";
+  if (!PATH) return null;
+  const dirs = PATH.split(path.delimiter).filter(Boolean);
+  const isWin = process.platform === "win32";
+  const exts = isWin
+    ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)
+    : [""];
+  for (const dir of dirs) {
+    if (!path.isAbsolute(dir)) continue;
+    for (const ext of exts) {
+      const candidate = path.join(dir, name + ext);
+      try {
+        const st = fs.statSync(candidate);
+        if (st.isFile()) return candidate;
+      } catch {
+        /* not here */
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Command: doctor — run the token-drift check against an installed `claude`
+ * binary if one is on PATH; otherwise print a notice and exit 0 (so the command
+ * is safe to run anywhere, including CI without Claude Code installed).
+ */
+function cmdDoctor() {
+  const bin = findOnPath("claude");
+  if (!bin) {
+    log(
+      "info",
+      "No `claude` binary found on PATH — skipping live token-drift check.",
+    );
+    log(
+      "info",
+      "Install Claude Code (or run `node scripts/extract-cc-tokens.js --check " +
+        "<path>`) to verify CC_TOKENS against the live build.",
+    );
+    process.exit(0);
+  }
+
+  log("step", `Found claude binary: ${bin}`);
+  log("info", "Checking CC_TOKENS against the live build for token drift...");
+  const script = path.resolve(__dirname, "../../../scripts/extract-cc-tokens.js");
+  if (!fs.existsSync(script)) {
+    // scripts/ is not shipped in the npm tarball, so a published install cannot
+    // run the live check. Treat as a soft skip rather than an error.
+    log(
+      "info",
+      "Drift-check script not available in this install — skipping live check.",
+    );
+    process.exit(0);
+  }
+  const r = spawnSync(process.execPath, [script, "--check", bin], {
+    stdio: "inherit",
+  });
+  process.exit(r.status === null ? 1 : r.status);
+}
+
 function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -2408,6 +2476,7 @@ Usage:
   node build-theme.js validate <theme-file>   Validate a theme JSON file
   node build-theme.js preview <theme-file>    Start preview server (port 8765)
   node build-theme.js init <theme-name>       Create a new theme template
+  node build-theme.js doctor                   Check CC_TOKENS for drift vs the installed claude
 
 Commands:
   apply    — Write ~/.claude/themes/<id>.json + set theme:"custom:<id>" + compile extension
@@ -2417,6 +2486,7 @@ Commands:
   validate — Validate theme JSON against schema rules
   preview  — Start HTTP server with themed mock Claude UI
   init     — Create a new theme folder with template JSON
+  doctor   — Run the token-drift check vs an installed claude binary (no-op if none on PATH)
 
 Options:
   preview command accepts optional port: node build-theme.js preview theme.json 8080
@@ -2489,6 +2559,11 @@ Options:
         process.exit(1);
       }
       cmdInit(args[1]);
+      break;
+    }
+
+    case "doctor": {
+      cmdDoctor();
       break;
     }
 
