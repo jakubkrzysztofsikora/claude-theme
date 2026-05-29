@@ -2474,6 +2474,7 @@ if (require.main === module) {
 
 // Export functions for testing / programmatic use
 module.exports = {
+  main,
   validateTheme,
   generateManifest,
   generateInjectJs,

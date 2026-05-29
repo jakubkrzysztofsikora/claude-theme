@@ -31,8 +31,11 @@ function run(cwd, args) {
   return { status: r.status ?? 1, out: (r.stdout || "") + (r.stderr || "") };
 }
 
-// Snapshot the repo's extension/ + themes/ mtimes so we can prove a foreign-cwd run
-// never writes back into the package.
+// Snapshot the repo's PACKAGE SOURCE (themes/) mtimes to prove a foreign-cwd run never
+// writes back into the package. We deliberately do NOT snapshot repo/extension/: it is
+// gitignored build output that other (parallel) test files legitimately rewrite when they
+// run the CLI with cwd=REPO — snapshotting it here made this test flaky. The "output lands
+// in CWD, not the package" guarantee is asserted directly per-test instead.
 function repoSnapshot() {
   const walk = (d) =>
     fs.existsSync(d)
@@ -46,9 +49,7 @@ function repoSnapshot() {
           .sort()
           .join("\n")
       : "";
-  return (
-    walk(path.join(REPO, "themes")) + "||" + walk(path.join(REPO, "extension"))
-  );
+  return walk(path.join(REPO, "themes"));
 }
 
 test("compile writes extension/ into the CWD, not the package, and repo is untouched", () => {
@@ -109,4 +110,30 @@ test("init writes a new theme under CWD/themes, not the package", () => {
     before,
     "repo themes/ untouched by init in a foreign cwd",
   );
+});
+
+// Lock the npm `files` allowlist: the published tarball must never include the
+// proprietary local theme, the React marketplace app, dev dirs, or build output.
+// Guards against a future `files` edit silently re-introducing the leak.
+test("npm pack tarball excludes proprietary/dev/build paths", () => {
+  const r = spawnSync("npm", ["pack", "--dry-run", "--json"], {
+    cwd: REPO,
+    encoding: "utf8",
+  });
+  assert.equal(r.status, 0, r.stderr);
+  // npm may print a corporate-CA warning before the JSON; slice from the first '['.
+  const json = r.stdout.slice(r.stdout.indexOf("["));
+  const files = JSON.parse(json)[0].files.map((f) => f.path);
+  const forbidden =
+    /(^|\/)circit|^marketplace\/|^thoughts\/|^docs\/|__tests__|^extension\/|^scripts\/|\.local\.json$/;
+  const leaked = files.filter((p) => forbidden.test(p));
+  assert.deepEqual(leaked, [], `forbidden paths leaked into tarball: ${leaked.join(", ")}`);
+  // sanity: the things we DO need are present
+  for (const need of [
+    ".claude/skills/whitelabel-theme/build-theme.js",
+    ".claude/skills/whitelabel-theme/cli-derive.js",
+    ".claude/skills/whitelabel-theme/warp-channel.js",
+  ]) {
+    assert.ok(files.includes(need), `missing required file: ${need}`);
+  }
 });

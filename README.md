@@ -197,7 +197,7 @@ This System:  Your Code -> 0 deps  -> 0 sub-deps  -> N=0
 
 ```bash
 git clone https://github.com/jakubkrzysztofsikora/claude-theme.git
-cd claude-whitelabel-themes
+cd claude-theme
 ```
 
 #### 2. Apply a theme (generates the extension)

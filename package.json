@@ -1,11 +1,12 @@
 {
   "name": "claude-whitelabel-themes",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Zero-dependency white-label theming system for Claude. Community theme marketplace with browser extension + CLI.",
   "bin": {
-    "claude-theme": ".claude/skills/whitelabel-theme/build-theme.js"
+    "claude-theme": "bin/claude-theme.js"
   },
   "files": [
+    "bin/claude-theme.js",
     ".claude/skills/whitelabel-theme/build-theme.js",
     ".claude/skills/whitelabel-theme/cli-derive.js",
     ".claude/skills/whitelabel-theme/warp-channel.js",
@@ -25,6 +26,7 @@
     "theme:preview": "node .claude/skills/whitelabel-theme/build-theme.js preview",
     "theme:init": "node .claude/skills/whitelabel-theme/build-theme.js init",
     "test": "node --test .claude/skills/whitelabel-theme/__tests__/*.test.js",
+    "prepublishOnly": "npm test",
     "marketplace:build": "node scripts/build-marketplace.js && cd marketplace && npm run build",
     "validate:themes": "node scripts/validate-theme.js themes/*/theme.json"
   },
