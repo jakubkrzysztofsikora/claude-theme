@@ -34,8 +34,13 @@ const warp = require("./warp-channel.js");
 const CWD = process.cwd();
 const HOME = process.env.HOME || process.env.USERPROFILE || "/tmp";
 const SCHEMA_PATH = path.resolve(__dirname, "../../../themes/schema.json");
+// THEMES_DIR (bundled built-in themes) stays package-relative so `list` still works when
+// the CLI is installed via npm. Output dirs, however, are CWD-relative: installed via
+// npm/npx the package-relative path lands inside node_modules (read-only / not findable),
+// so `compile`/`apply` must write the extension into the user's working directory. When
+// run from the repo root (dev + tests) CWD == repo, so this resolves to the same path.
 const THEMES_DIR = path.resolve(__dirname, "../../../themes");
-const EXTENSION_DIR = path.resolve(__dirname, "../../../extension");
+const EXTENSION_DIR = path.resolve(CWD, "extension");
 const SETTINGS_DIR = path.join(HOME, ".claude");
 const SETTINGS_PATH = path.join(SETTINGS_DIR, "settings.json");
 // Claude Code custom themes live here, distinct from THEMES_DIR (the repo source dir).
@@ -823,11 +828,9 @@ function generateManifest(theme) {
       default_popup: "popup.html",
       default_title: `Claude Theme: ${theme.name}`,
     },
-    icons: {
-      16: "icon16.png",
-      48: "icon48.png",
-      128: "icon128.png",
-    },
+    // No `icons` block: the build does not emit icon PNGs, so referencing them produced
+    // broken-icon errors on "load unpacked" and a hard Chrome Web Store rejection. MV3 is
+    // valid without icons (Chrome shows a default). Add real PNGs here before any CWS submit.
   };
 }
 
@@ -2248,7 +2251,9 @@ ${cssVars}
  */
 function cmdInit(themeName) {
   const themeId = kebabCase(themeName);
-  const themeDir = path.join(THEMES_DIR, themeId);
+  // Write new themes under the user's CWD (not THEMES_DIR / the package dir, which is
+  // read-only when installed via npm). In the repo, CWD == repo root → repo/themes.
+  const themeDir = path.join(CWD, "themes", themeId);
   const themeJsonPath = path.join(themeDir, "theme.json");
 
   if (fs.existsSync(themeDir)) {
