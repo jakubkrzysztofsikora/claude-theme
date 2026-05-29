@@ -5,9 +5,11 @@ description: Use when the user wants to apply, preview, list, reset, or build a 
 
 # White-Label Theme Manager
 
-Themes Claude across three channels from one theme JSON: the **claude.ai browser UI**
-(a generated Chrome extension), **Claude Code terminal colors** (`~/.claude`), and the
-**Warp** terminal (`~/.warp`).
+**Author one theme, apply it across Claude everywhere.** From a single theme JSON, this
+themes all three surfaces at once: the **claude.ai browser UI** (a generated Chrome
+extension), **Claude Code terminal colors** (`~/.claude`), and the **Warp** terminal
+(`~/.warp`). No other Claude theming option spans the web UI, the CLI, and the terminal —
+this is the cross-surface, author-once one.
 
 This plugin is a thin wrapper over the zero-dependency **`claude-whitelabel-themes`** CLI,
 invoked with `npx` (no global install needed; `npx -y` fetches it on first use).

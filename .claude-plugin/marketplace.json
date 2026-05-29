@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-theme-marketplace",
-  "description": "White-label theming for Claude — apply, preview, and build custom themes across the browser, the Claude Code CLI, and Warp.",
+  "description": "Author one theme, apply it across Claude everywhere — the claude.ai browser UI, the Claude Code CLI, and Warp. White-label theming to apply, preview, and build custom themes.",
   "owner": {
     "name": "Jakub Sikora",
     "url": "https://github.com/jakubkrzysztofsikora"
@@ -10,7 +10,7 @@
     {
       "name": "whitelabel-theme",
       "source": "./plugins/whitelabel-theme",
-      "description": "Apply, preview, list, reset, and build white-label Claude themes. Commands wrap the zero-dependency `claude-whitelabel-themes` CLI (via npx) — theming the claude.ai browser UI, Claude Code terminal colors, and Warp.",
+      "description": "Author one theme, apply it across Claude everywhere — the claude.ai browser UI, Claude Code terminal colors, and Warp. Apply, preview, list, reset, and build white-label themes; commands wrap the zero-dependency `claude-whitelabel-themes` CLI (via npx).",
       "author": {
         "name": "Jakub Sikora"
       },

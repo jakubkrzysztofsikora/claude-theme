@@ -1,7 +1,7 @@
 {
   "name": "claude-whitelabel-themes",
   "version": "0.1.0",
-  "description": "Zero-dependency white-label theming system for Claude. Community theme marketplace with browser extension + CLI.",
+  "description": "Author one theme, apply it across Claude everywhere — the claude.ai web UI, the Claude Code CLI, and Warp. Zero-dependency white-label theming with a browser extension, CLI, and community marketplace.",
   "bin": {
     "claude-theme": "bin/claude-theme.js",
     "claude-whitelabel-themes": "bin/claude-theme.js"
