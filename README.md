@@ -3,12 +3,14 @@
 > **Personalize Claude everywhere — one theme restyles the claude.ai web UI, the
 > Claude Code CLI, and your Warp terminal. Author once, apply across all three.**
 
-**Why:** native Claude gives you only Light / Dark, and Claude Code's terminal UI colors
-are otherwise hard to fully control — so if you want a specific palette, accessible
-high-contrast, or a consistent look across the browser and your terminal, there's no
-built-in way. This is a zero-dependency CLI that compiles a single theme file into a
-browser extension + Claude Code theme + Warp theme, with 8 built-in themes and a
-`init`-to-author workflow.
+**Why:** every other Claude theming option styles a *single* surface — a VS Code color
+theme, a Claude Code preset, or a browser userstyle. None of them give you **one palette
+that follows you across all three places you actually use Claude**: the claude.ai web UI,
+the Claude Code CLI, and your Warp terminal. Native Claude only offers Light / Dark, and
+Claude Code's terminal colors are otherwise hard to fully control. This is a
+zero-dependency CLI that compiles **a single theme file** into a browser extension + a
+Claude Code theme + a Warp theme — author once, apply everywhere — with 8 built-in themes,
+accessible high-contrast/colorblind bases, and an `init`-to-author workflow.
 
 > ⚠️ **Unofficial.** This is an independent, community project — not affiliated with,
 > endorsed by, or supported by Anthropic. "Claude" is a trademark of Anthropic.
@@ -29,6 +31,25 @@ browser extension + Claude Code theme + Warp theme, with 8 built-in themes and a
   <a href="docs/API_REFERENCE.md">API Docs</a> &bull;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
 </p>
+
+---
+
+## Why this vs. other options
+
+Other Claude theming projects each cover **one surface**. This is the only one where you
+**author a theme once and it applies across the claude.ai web UI, the Claude Code CLI, and
+Warp** — from a single `theme.json`.
+
+| | claude.ai web | Claude Code CLI | Warp / terminal | Author once | a11y / high-contrast | Zero-dependency |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **This tool** (`claude-whitelabel-themes`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| [`ashwingopalsamy/claude-code-theme`](https://github.com/ashwingopalsamy/claude-code-theme) (VS Code theme) | ❌ | ❌ | ❌ | ❌ | ❌ | n/a |
+| [`rafsanmuhammed/claude-code-themes`](https://github.com/rafsanmuhammed/claude-code-themes) | ❌ | ✅ | ❌ | ❌ | ❌ | n/a |
+| userstyles / [Stylus](https://github.com/openstyles/stylus) (browser userstyle) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+Surface coverage is the differentiator: the same palette, logo, and font follow you from
+the browser into the terminal, so your Claude looks consistent wherever you work — and the
+built-in high-contrast/colorblind bases keep it readable.
 
 ---
 
