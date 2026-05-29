@@ -2343,6 +2343,77 @@ function cmdInit(themeName) {
 }
 
 // ---------------------------------------------------------------------------
+// doctor — token-drift guardrail
+// ---------------------------------------------------------------------------
+
+/**
+ * Locate an executable on PATH (cross-platform, no shell). Returns the absolute
+ * path or null. Mirrors `which`/`where` using fs checks so it works in the
+ * sandboxed test environment and on Windows.
+ */
+function findOnPath(name) {
+  const envPath = process.env.PATH || "";
+  if (!envPath) return null;
+  const dirs = envPath.split(path.delimiter).filter(Boolean);
+  // On Windows, try the documented executable extensions; elsewhere just the name.
+  const exts =
+    process.platform === "win32"
+      ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";")
+      : [""];
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = path.join(dir, name + ext);
+      try {
+        const st = fs.statSync(candidate);
+        if (st.isFile()) return candidate;
+      } catch {
+        // not here; keep looking
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * doctor — run the token-drift check against an installed `claude` binary if one
+ * is found on PATH. When no binary is available (the common case in CI / fresh
+ * checkouts) this is a no-op that prints a notice and exits 0, so it never blocks
+ * a machine that simply doesn't have Claude Code installed. The offline guard
+ * (CC_TOKENS === lockfile) is enforced by the unit test, not here.
+ */
+function cmdDoctor() {
+  const { execFileSync } = require("child_process");
+  const extractScript = path.resolve(
+    __dirname,
+    "../../../scripts/extract-cc-tokens.js",
+  );
+
+  const claudeBin = findOnPath("claude");
+  if (!claudeBin) {
+    log(
+      "info",
+      "doctor: no `claude` binary found on PATH — skipping live token-drift " +
+        "check. (The CC_TOKENS↔lockfile consistency check runs in `npm test`.)",
+    );
+    process.exit(0);
+  }
+
+  log("info", `doctor: checking token drift against ${claudeBin}`);
+  try {
+    execFileSync(process.execPath, [extractScript, "--check", claudeBin], {
+      stdio: "inherit",
+    });
+  } catch (err) {
+    // execFileSync throws on non-zero exit; propagate the drift failure.
+    const code = typeof err.status === "number" ? err.status : 1;
+    log("error", "doctor: token drift detected (see diff above).");
+    process.exit(code);
+  }
+  log("ok", "doctor: no token drift detected.");
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
 // Main Entry Point
 // ---------------------------------------------------------------------------
 
@@ -2368,6 +2439,7 @@ Usage:
   node build-theme.js validate <theme-file>   Validate a theme JSON file
   node build-theme.js preview <theme-file>    Start preview server (port 8765)
   node build-theme.js init <theme-name>       Create a new theme template
+  node build-theme.js doctor                   Check CC token drift vs installed claude
 
 Commands:
   apply    — Write ~/.claude/themes/<id>.json + set theme:"custom:<id>" + compile extension
@@ -2377,6 +2449,7 @@ Commands:
   validate — Validate theme JSON against schema rules
   preview  — Start HTTP server with themed mock Claude UI
   init     — Create a new theme folder with template JSON
+  doctor   — Run the token-drift check if a claude binary is on PATH (else skip)
 
 Options:
   preview command accepts optional port: node build-theme.js preview theme.json 8080
@@ -2447,6 +2520,11 @@ Options:
         process.exit(1);
       }
       cmdInit(args[1]);
+      break;
+    }
+
+    case "doctor": {
+      cmdDoctor();
       break;
     }
 

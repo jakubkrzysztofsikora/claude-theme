@@ -1,0 +1,45 @@
+name: token-drift
+
+# Guards the Claude Code custom-theme override token set (CC_TOKENS in
+# build-theme.js) against drift. Two layers:
+#   1. `npm test` always runs — its token-drift.test.js asserts CC_TOKENS equals
+#      scripts/cc-tokens.lock.json, so a code/lock divergence fails offline.
+#   2. The live `--check` against an installed `claude` binary runs only when one
+#      is on PATH (most CI runners have none) — else it skips with a notice.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  token-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Zero runtime deps, but tests/format may want devDependencies if present.
+      - name: Install (if a lockfile exists)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "No package-lock.json; skipping install (zero-dependency package)."
+          fi
+
+      - name: Unit tests (offline CC_TOKENS <-> lockfile guard always runs)
+        run: npm test
+
+      - name: Live token-drift check (only if a claude binary is available)
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            echo "Found claude on PATH; running live --check."
+            node scripts/extract-cc-tokens.js --check "$(command -v claude)"
+          else
+            echo "::notice::No claude binary on PATH — skipping live token-drift check. The offline CC_TOKENS<->lockfile guard ran in npm test."
+          fi
