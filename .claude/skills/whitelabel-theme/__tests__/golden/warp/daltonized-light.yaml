@@ -1,0 +1,24 @@
+name: "Daltonized Light"
+accent: '#3a56d4'
+background: '#ffffff'
+foreground: '#161616'
+details: lighter
+terminal_colors:
+  normal:
+    black: '#161616'
+    red: '#c43e00'
+    green: '#3a56d4'
+    yellow: '#9a6a00'
+    blue: '#9a6a00'
+    magenta: '#3d4451'
+    cyan: '#3a56d4'
+    white: '#ffffff'
+  bright:
+    black: '#505050'
+    red: '#d36e40'
+    green: '#6b80df'
+    yellow: '#b38f40'
+    blue: '#b38f40'
+    magenta: '#6e737d'
+    cyan: '#6b80df'
+    white: '#ffffff'

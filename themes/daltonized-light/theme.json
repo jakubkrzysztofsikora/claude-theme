@@ -1,0 +1,57 @@
+{
+  "$schema": "./schema.json",
+  "name": "Daltonized Light",
+  "id": "daltonized-light",
+  "version": "1.0.0",
+  "author": "Claude Themes Community",
+  "description": "Colorblind-safe light preset built on the daltonized base and the IBM colorblind-safe palette (deuteranopia/protanopia/tritanopia friendly). Derives every Claude Code token so success/error and other status colors stay distinguishable, and replaces the hardcoded white user-input highlight with a readable light surface.",
+  "license": "MIT",
+  "tags": [
+    "light",
+    "daltonized",
+    "colorblind-safe",
+    "accessibility",
+    "a11y"
+  ],
+  "preview": {
+    "primary": "#3A56D4",
+    "secondary": "#9A6A00",
+    "background": "#FFFFFF",
+    "surface": "#F2F4F8",
+    "text": "#161616"
+  },
+  "tokens": {
+    "color": {
+      "brandPrimary": "#3A56D4",
+      "brandAccent": "#9A6A00",
+      "background": "#FFFFFF",
+      "surface": "#F2F4F8",
+      "surfaceHover": "#E5E9F0",
+      "textPrimary": "#161616",
+      "textSecondary": "#3D4451",
+      "textMuted": "#5A6271",
+      "border": "#C9CFDA",
+      "success": "#3A56D4",
+      "warning": "#9A6A00",
+      "error": "#C43E00",
+      "userMessageText": "#5B3FC4"
+    },
+    "typography": {
+      "fontFamily": "Atkinson Hyperlegible",
+      "fontUrl": "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    },
+    "logo": {
+      "type": "svg",
+      "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#3A56D4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"16\" cy=\"16\" r=\"11\"/><path d=\"M16 5a11 11 0 0 0 0 22z\" fill=\"#9A6A00\" stroke=\"none\"/></svg>",
+      "viewBox": "0 0 32 32"
+    },
+    "favicon": {
+      "type": "emoji",
+      "value": "🔵"
+    }
+  },
+  "terminal": {
+    "base": "light-daltonized",
+    "deriveAll": true
+  }
+}
