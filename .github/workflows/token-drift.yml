@@ -1,0 +1,38 @@
+name: Token Drift
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  token-drift:
+    runs-on: ubuntu-latest
+    name: CC_TOKENS drift guardrail
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Offline gate: always runs. Fails if CC_TOKENS (build-theme.js) and
+      # scripts/cc-tokens.lock.json have diverged, plus the rest of the suite.
+      - name: Run tests (offline drift gate included)
+        run: npm test
+
+      # Live gate: only if a `claude` binary is on PATH on the runner. GitHub's
+      # hosted runners do not ship Claude Code, so this normally skips with a
+      # notice rather than failing the job.
+      - name: Live token-drift check (if claude available)
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            BIN="$(command -v claude)"
+            echo "Found claude at $BIN — running live --check"
+            node scripts/extract-cc-tokens.js --check "$BIN"
+          else
+            echo "::notice::No claude binary on PATH — skipping live token-drift check (offline gate already ran via npm test)."
+          fi

@@ -15,13 +15,38 @@
  *
  * Usage:
  *   node scripts/extract-cc-tokens.js <path-to-claude-binary>
+ *     Report-only mode. Exit code 0 always. Tokens with 0 occurrences are
+ *     flagged so they can be removed from CC_TOKENS.
  *
- * Exit code 0 always (this is a report, not a gate). Tokens with 0 occurrences
- * are flagged so they can be removed from CC_TOKENS.
+ *   node scripts/extract-cc-tokens.js --check <path-to-claude-binary>
+ *     Drift gate. Compares the live binary's quoted-occurrence token set to
+ *     scripts/cc-tokens.lock.json and EXITS NON-ZERO if a token was added or
+ *     removed (printing the diff). Tokens in JUDGMENT_EXCLUDED (quoted in the
+ *     bundle but intentionally kept out of CC_TOKENS, e.g. `background`) are
+ *     never flagged as drift.
  */
 
 const { execFileSync } = require("child_process");
 const fs = require("fs");
+const path = require("path");
+
+const LOCKFILE = path.join(__dirname, "cc-tokens.lock.json");
+
+// Tokens whose quoted form appears in the bundle but which are intentionally
+// EXCLUDED from CC_TOKENS by judgement (not measurement). `background` is a
+// common word that appears quoted in unrelated code; the rest are documented
+// names that either don't exist or aren't real override tokens in this build.
+// These must NOT be reported as drift by --check.
+const JUDGMENT_EXCLUDED = new Set([
+  "background",
+  "messageActionsBackground",
+  "selectionBg",
+  "promptBorderShimmer",
+  "permissionShimmer",
+  "warningShimmer",
+  "fastModeShimmer",
+  "inactiveShimmer",
+]);
 
 // Candidate tokens: the current CC_TOKENS set plus documented/community names
 // worth re-checking on each version bump. Presence is decided empirically.
@@ -95,48 +120,138 @@ const CANDIDATES = [
   "inactiveShimmer",
 ];
 
-function main() {
-  const binPath = process.argv[2];
-  if (!binPath) {
-    process.stderr.write(
-      "Usage: node scripts/extract-cc-tokens.js <path-to-claude-binary>\n",
-    );
-    process.exit(2);
-  }
+/**
+ * Run `strings` over the binary once and return the dump. Counting quoted
+ * occurrences in JS avoids spawning grep per token and any shell-injection
+ * surface. `-a` scans the whole file (not just loaded sections) for consistency
+ * across GNU/BSD strings. `--` stops flag parsing so a path beginning with `-`
+ * is treated as a file. maxBuffer is sized well above the ~205MB binary
+ * (strings output <= input). Exits the process on failure.
+ */
+function dumpStrings(binPath) {
   if (!fs.existsSync(binPath)) {
     process.stderr.write(`No such file: ${binPath}\n`);
     process.exit(2);
   }
-
-  // Run `strings` once, then count quoted occurrences in JS (avoids spawning
-  // grep per token and avoids shell-injection surface entirely). `-a` scans the
-  // whole file (not just loaded sections) for consistency across GNU/BSD strings.
-  // `--` stops flag parsing so a path beginning with `-` is treated as a file.
-  // maxBuffer is sized well above the ~205MB binary (strings output <= input).
-  let dump;
   try {
-    dump = execFileSync("strings", ["-a", "--", binPath], {
+    return execFileSync("strings", ["-a", "--", binPath], {
       maxBuffer: 1024 * 1024 * 1024,
       encoding: "latin1",
     });
   } catch (err) {
+    process.stderr.write(`Failed to run \`strings\` on binary: ${err.message}\n`);
+    process.exit(2);
+  }
+}
+
+/** Count occurrences of the quoted token ("<tok>") in the dump. */
+function quotedCount(dump, tok) {
+  const needle = `"${tok}"`;
+  let count = 0;
+  let idx = dump.indexOf(needle);
+  while (idx !== -1) {
+    count++;
+    idx = dump.indexOf(needle, idx + needle.length);
+  }
+  return count;
+}
+
+/**
+ * --check mode: compare the live binary's quoted-occurrence token set against
+ * the lockfile and exit non-zero on drift. Candidate names come from the union
+ * of the lockfile tokens and the report CANDIDATES so a newly-introduced token
+ * is detected. JUDGMENT_EXCLUDED names are never counted as drift.
+ */
+function runCheck(binPath) {
+  let lock;
+  try {
+    lock = JSON.parse(fs.readFileSync(LOCKFILE, "utf8"));
+  } catch (err) {
+    process.stderr.write(`Failed to read lockfile ${LOCKFILE}: ${err.message}\n`);
+    process.exit(2);
+  }
+  const locked = new Set(lock.tokens || []);
+  const dump = dumpStrings(binPath);
+
+  // Anchor sanity (shared with the report): if no distinctive token is found,
+  // the target is not a real Claude Code bundle — fail loudly rather than
+  // reporting every locked token as "removed".
+  const ANCHORS = ["red_FOR_SUBAGENTS_ONLY", "rate_limit_fill", "diffAdded"];
+  if (!ANCHORS.some((a) => quotedCount(dump, a) > 0)) {
     process.stderr.write(
-      `Failed to run \`strings\` on binary: ${err.message}\n`,
+      `Refusing to check: none of the anchor tokens (${ANCHORS.join(", ")}) ` +
+        `were found. The target does not look like a Claude Code bundle.\n`,
+    );
+    process.exit(3);
+  }
+
+  // Names to probe: everything in the lock + the report candidates (catches
+  // additions), minus the judgement-excluded set (never drift).
+  const probe = new Set([...locked, ...CANDIDATES]);
+  for (const x of JUDGMENT_EXCLUDED) probe.delete(x);
+
+  const present = new Set();
+  for (const tok of probe) {
+    if (quotedCount(dump, tok) > 0) present.add(tok);
+  }
+
+  // Removed: in the lock but no longer present in the binary.
+  const removed = [...locked].filter((t) => !present.has(t)).sort();
+  // Added: present in the binary, not in the lock, not excluded by judgement.
+  const added = [...present].filter((t) => !locked.has(t)).sort();
+
+  process.stdout.write(`Checked: ${binPath}\n`);
+  process.stdout.write(`Lockfile: ${LOCKFILE} (version ${lock.version})\n`);
+
+  if (removed.length === 0 && added.length === 0) {
+    process.stdout.write(`\nNo token drift. CC_TOKENS lock is up to date.\n`);
+    process.exit(0);
+  }
+
+  process.stdout.write(`\nTOKEN DRIFT DETECTED:\n`);
+  if (added.length) {
+    process.stdout.write(`\n  ADDED (in binary, not in lock):\n`);
+    for (const t of added) process.stdout.write(`    + ${t}\n`);
+  }
+  if (removed.length) {
+    process.stdout.write(`\n  REMOVED (in lock, not in binary):\n`);
+    for (const t of removed) process.stdout.write(`    - ${t}\n`);
+  }
+  process.stdout.write(
+    `\nUpdate CC_TOKENS in build-theme.js and regenerate ` +
+      `scripts/cc-tokens.lock.json, then re-run.\n`,
+  );
+  process.exit(1);
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  if (argv[0] === "--check") {
+    const binPath = argv[1];
+    if (!binPath) {
+      process.stderr.write(
+        "Usage: node scripts/extract-cc-tokens.js --check <path-to-claude-binary>\n",
+      );
+      process.exit(2);
+    }
+    runCheck(binPath);
+    return;
+  }
+
+  const binPath = argv[0];
+  if (!binPath) {
+    process.stderr.write(
+      "Usage: node scripts/extract-cc-tokens.js [--check] <path-to-claude-binary>\n",
     );
     process.exit(2);
   }
 
+  const dump = dumpStrings(binPath);
+
   const present = [];
   const absent = [];
   for (const tok of CANDIDATES) {
-    // Count occurrences of the quoted token: "<tok>"
-    const needle = `"${tok}"`;
-    let count = 0;
-    let idx = dump.indexOf(needle);
-    while (idx !== -1) {
-      count++;
-      idx = dump.indexOf(needle, idx + needle.length);
-    }
+    const count = quotedCount(dump, tok);
     (count > 0 ? present : absent).push({ tok, count });
   }
 
