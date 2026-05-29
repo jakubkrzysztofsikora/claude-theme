@@ -130,11 +130,13 @@ function buildWarpTheme(theme, ccTheme) {
       .join("\n");
 
   // Block-style YAML matching the hand-written reference shape. All hex lowercase.
+  // accent/foreground emitted only when resolved (never 'undefined'); validation
+  // guarantees their source tokens, so for a valid theme they are always present.
   return (
     `name: ${yamlString(theme.name)}\n` +
-    `accent: '${accent}'\n` +
+    (accent ? `accent: '${accent}'\n` : "") +
     `background: '${bg}'\n` +
-    `foreground: '${fg}'\n` +
+    (fg ? `foreground: '${fg}'\n` : "") +
     `details: ${details}\n` +
     `terminal_colors:\n` +
     `  normal:\n${emitGroup(normal)}\n` +
@@ -224,10 +226,14 @@ function locateThemeValue(text) {
     };
   }
 
-  // Value scan from the first '=' on the target line.
+  // Value scan from the first '=' on the target line. Skip ONLY spaces/tabs — the value
+  // must begin on the key's line (TOML requires it). Crossing a newline would let an
+  // empty value (`theme =\n`) swallow the next sibling line, so bail malformed instead.
   const eqRel = target.text.indexOf("=");
   let p = target.start + eqRel + 1;
-  while (p < text.length && /[ \t\r\n]/.test(text[p])) p++; // skip ws/newlines to value start
+  while (p < text.length && (text[p] === " " || text[p] === "\t")) p++;
+  if (p >= text.length || text[p] === "\n" || text[p] === "\r")
+    return { kind: "malformed" };
   const valueStart = p;
   const first = text[p];
 

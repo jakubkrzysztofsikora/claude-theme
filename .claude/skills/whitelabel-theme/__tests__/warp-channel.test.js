@@ -15,7 +15,9 @@ const warp = require(path.join(SKILL_DIR, "warp-channel.js"));
 const { buildClaudeCodeTheme } = require(
   path.join(SKILL_DIR, "build-theme.js"),
 );
-const { relLuminance } = require(path.join(SKILL_DIR, "cli-derive.js"));
+const { relLuminance, lighten } = require(
+  path.join(SKILL_DIR, "cli-derive.js"),
+);
 
 const HEX = /^#[0-9a-f]{6}$/;
 
@@ -115,18 +117,56 @@ for (const theme of listThemes()) {
   });
 }
 
-// --- case 21: bright = lighten(normal, 0.25) --------------------------------
-test("buildWarpTheme: bright.red is lighter than normal.red", () => {
+// --- case 21: bright = lighten(normal, 0.25) (assert the AMOUNT, not just lighter) --
+test("buildWarpTheme: bright.* === lighten(normal.*, 0.25)", () => {
   const theme =
     listThemes().find((t) => t.id === "neon-district") || listThemes()[0];
   const yaml = warp.buildWarpTheme(theme, buildClaudeCodeTheme(theme));
   const nr = (yaml.match(/normal:[\s\S]*?red: '([^']+)'/) || [])[1];
   const br = (yaml.match(/bright:[\s\S]*?red: '([^']+)'/) || [])[1];
-  assert.ok(nr && br && HEX.test(br));
-  assert.ok(
-    relLuminance(br) >= relLuminance(nr),
-    "bright red >= normal red luminance",
+  const nw = (yaml.match(/normal:[\s\S]*?white: '([^']+)'/) || [])[1];
+  const bw = (yaml.match(/bright:[\s\S]*?white: '([^']+)'/) || [])[1];
+  assert.equal(
+    br,
+    lighten(nr, 0.25),
+    "bright.red === lighten(normal.red, 0.25)",
   );
+  assert.equal(
+    bw,
+    lighten(nw, 0.25),
+    "bright.white === lighten(normal.white, 0.25)",
+  );
+});
+
+// --- case 24 end-to-end: ansi/rgb terminal.* resolve through buildWarpTheme ---
+test("buildWarpTheme: ansi: terminal color falls back to the specific tokens.color hex", () => {
+  const theme = JSON.parse(JSON.stringify(listThemes()[0]));
+  theme.terminal = { ...(theme.terminal || {}), errorColor: "ansi:red" };
+  const yaml = warp.buildWarpTheme(theme, buildClaudeCodeTheme(theme));
+  const red = (yaml.match(/normal:[\s\S]*?red: '([^']+)'/) || [])[1];
+  assert.equal(
+    red,
+    warp.resolveHex(theme.tokens.color.error),
+    "ansi: -> tokens.color.error",
+  );
+  assert.ok(HEX.test(red));
+});
+
+// --- warpActivationLine: slug derivation + escaping --------------------------
+test("warpActivationLine: slug + escaped name/path", () => {
+  const line = warp.warpActivationLine(
+    { id: "forest-canopy", name: 'My "Theme"' },
+    "/a/b c.yaml",
+  );
+  assert.ok(line.includes("custom_forest_canopy = {"), "slug: - -> _");
+  assert.ok(line.includes('name = "My \\"Theme\\""'), "TOML-escaped name");
+  assert.ok(line.includes('path = "/a/b c.yaml"'), "path emitted");
+});
+
+// --- regression (harness MAJOR): empty bare value must NOT swallow sibling ---
+test("locate: empty value `theme =` bails malformed, never eats sibling", () => {
+  const txt = "[appearance.themes]\ntheme =\nsystem_theme = false\n";
+  assert.equal(warp.locateThemeValue(txt).kind, "malformed");
 });
 
 // --- case 25: name escaping --------------------------------------------------
@@ -201,12 +241,54 @@ test("locate: CRLF round-trips; no-trailing-newline preserved", () => {
   assert.ok(out.includes("system_theme = false"));
 });
 
-test("locate: theme=, theme  =, tab-indent all located", () => {
+test("locate: theme=, theme  =, tab-indent all located + indent preserved on rewrite", () => {
   for (const line of ['theme="A"', 'theme  = "A"', '\ttheme = "A"']) {
-    const loc = warp.locateThemeValue("[appearance.themes]\n" + line + "\n");
+    const txt = "[appearance.themes]\n" + line + "\n";
+    const loc = warp.locateThemeValue(txt);
     assert.equal(loc.kind, "found", line);
     assert.equal(loc.value, '"A"');
+    // rewrite with the captured indent reproduces the leading whitespace
+    const out = warp.replaceThemeValue(txt, loc, loc.indent + 'theme = "B"');
+    const want = line.startsWith("\t") ? '\ttheme = "B"' : 'theme = "B"';
+    assert.ok(out.includes(want), `indent preserved: ${JSON.stringify(want)}`);
   }
+});
+
+test("locate: theme_mode / dotted theme.x siblings are NOT matched", () => {
+  assert.equal(
+    warp.locateThemeValue("[appearance.themes]\ntheme_mode = 1\n").kind,
+    "missing",
+  );
+  assert.equal(
+    warp.locateThemeValue("[appearance.themes]\ntheme.sub = 1\n").kind,
+    "missing",
+  );
+});
+
+test("insert: append-at-EOF separator with and without trailing newline", () => {
+  const withNl = warp.insertThemeKey(
+    "[other]\nk = 1\n",
+    warp.locateThemeValue("[other]\nk = 1\n"),
+    'theme = "A"',
+    "\n",
+  );
+  assert.equal(withNl.sectionInserted, true);
+  assert.ok(withNl.text.endsWith('[appearance.themes]\ntheme = "A"\n'));
+  assert.ok(
+    !/\n\n\[appearance/.test(withNl.text),
+    "no double blank before section",
+  );
+
+  const noNl = warp.insertThemeKey(
+    "[other]\nk = 1",
+    warp.locateThemeValue("[other]\nk = 1"),
+    'theme = "A"',
+    "\n",
+  );
+  assert.ok(
+    noNl.text.includes("k = 1\n[appearance.themes]\n"),
+    "leading newline inserted when file lacked trailing newline",
+  );
 });
 
 test("locate: comment containing } is ignored by the brace matcher", () => {
