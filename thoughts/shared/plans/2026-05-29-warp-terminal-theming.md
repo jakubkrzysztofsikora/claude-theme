@@ -69,19 +69,23 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
   const bg = resolveHex(ccTheme.overrides.userMessageBackground, resolveHex(c.background));
   if (!bg) throw new Error("buildWarpTheme: unresolved background"); // can't happen for valid themes
   const fg = resolveHex(t.assistantColor, resolveHex(c.textPrimary));
+  // slot() MUST be declared before first use — it's a const arrow (NOT hoisted); the
+  // `accent` line below references it (round-4 fixed a TDZ ReferenceError here).
+  const slot = (...chain) => chain.reduce((acc,v)=>acc ?? resolveHex(v), undefined); // omit if undefined
   const accent = slot(t.promptColor, c.brandPrimary);              // emitted top-level
   const details = relLuminance(bg) < 0.5 ? "darker" : "lighter";   // KEYWORD, not a color
 
   // Absolute ANSI anchors by POLARITY, not contrastFloor (which would invert them:
   // on a dark bg contrastFloor pushes the dark candidate toward WHITE — review C1/B1).
+  // The 0.15/0.85 guards are a single best-effort nudge; the ONLY hard contract is the
+  // polarity the test-23 oracle checks (don't assert >=0.85 — a mid-tone candidate may
+  // land ~0.69 after one mix, which still satisfies the oracle).
   const byLum = (...hx) => hx.filter(Boolean).sort((a,b)=>relLuminance(a)-relLuminance(b));
   const cands = byLum(resolveHex(c.textPrimary), resolveHex(c.surface), bg);
   let black = cands[0];                                  // darkest available
   if (relLuminance(black) > 0.15) black = mix(black, "#000000", 0.6); // force genuinely dark
   let white = cands[cands.length-1];                     // lightest available
   if (relLuminance(white) < 0.85) white = mix(white, "#ffffff", 0.6); // force genuinely light
-
-  const slot = (...chain) => chain.reduce((acc,v)=>acc ?? resolveHex(v), undefined); // omit if undefined
   const normal = {
     black, white,
     red: slot(t.errorColor, c.error),       green: slot(t.successColor, c.success),
@@ -91,9 +95,12 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
   const bright = {};                                     // explicit loop — no lodash mapValues
   for (const [k, h] of Object.entries(normal)) if (h) bright[k] = lighten(h, 0.25); // clamps at #ffffff
   // Emit YAML in Warp's REAL shape (cf. ~/.warp/themes/forest_canopy.yaml):
-  //   accent/background/foreground: single-quoted lowercase hex; details: <keyword>;
+  //   accent/background/foreground: single-quoted hex; details: <keyword>;
   //   name: "<double-quoted YAML scalar, escaped>";
   //   terminal_colors:\n  normal: {…}\n  bright: {…}   — omit any undefined slot.
+  // ALL hex emitted LOWERCASE (toHex/lighten already produce lowercase; case-23 asserts
+  // /^#[0-9a-f]{6}$/). Do NOT expect casing parity with the hand-written forest_canopy.yaml
+  // (which is uppercase) — the golden must match the emitter's lowercase output.
   ```
   - **Where**: new file. `slot`/`mix`/`relLuminance`/`lighten` from `cli-derive`.
   - **Rationale**: `background` from the already-built `ccTheme` guarantees Warp bg == CC
@@ -115,14 +122,20 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
     + `[privacy]` single-quoted regex braces). See spec "TOML line-editor".
 
 - **`replaceThemeValue(text, newValueLine)`** / **`insertThemeKey(text, line)`** /
-  **`removeThemeValue(text, loc)`** — splice only the located extent (replace), or insert
-  after header / append a new `[appearance.themes]` section at EOF (insert), or delete the
-  `theme` line(s) — and, if we inserted the section ourselves, the now-empty
-  `[appearance.themes]` header too (remove). All preserve indent, EOL, trailing-newline.
-  Bail if a `theme` key exists under a different table (`[appearance]`).
+  **`removeThemeValue(text, loc, { removeEmptySection })`** — splice only the located
+  extent (replace), or insert after header / append a new `[appearance.themes]` section at
+  EOF (insert), or delete the `theme` line(s) (remove). All preserve indent, EOL,
+  trailing-newline. Bail if a `theme` key exists under a different table (`[appearance]`).
   - **`removeThemeValue` is required** by the `originalValueText: null` restore (test 8)
     and the additive-insert reset (test 33) — there is no other way to undo an insert
     (review M2).
+  - **Section-removal is caller-driven, not inferred (round-4):** a pure function cannot
+    tell from text alone whether *we* created `[appearance.themes]`. `insertThemeKey`
+    reports whether it created the header; `activateWarpTheme` records that as
+    `sectionInserted` in state. On reset, `removeThemeValue` is called with
+    `removeEmptySection: state.sectionInserted` and only drops the header when **the
+    section body is otherwise empty**. This protects the real-file case (header holds both
+    `theme` and a `system_theme` sibling) — the sibling and header survive.
 
 - **`warpActivationLine(theme, yamlPath)`** →
   `theme = { custom_<id-with-underscores> = { name = "<escaped>", path = "<yamlPath>" } }`
@@ -135,14 +148,19 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
       ignored; 12 siblings; 13 duplicate-in-`[appearance]` → bail; 14 CRLF/no-newline;
       15 whitespace variants; 16 comment-brace; 17 malformed/`"""` → bail). *(18/19/19a are
       Phase-2 — they need the I/O round-trip + `.bak`.)*
-- [ ] `removeThemeValue` pure cases (delete an inserted `theme` line; delete a
-      self-inserted empty `[appearance.themes]` section) — backs tests 8 & 33.
+- [ ] `removeThemeValue` pure cases: (a) delete a self-inserted empty `[appearance.themes]`
+      section (`removeEmptySection:true`, body empty → header gone); (b) **delete a `theme`
+      line that sits beside a `system_theme` sibling (`removeEmptySection:true` but body
+      NOT empty) → sibling AND header survive** (real-file case); (c)
+      `removeEmptySection:false` → header always kept. Backs tests 8 & 33.
 - [ ] `buildWarpTheme` pure cases 20, 21, 22, 23, 24, 25, 26a against the real-file fixture + all 8 bundled themes
 - [ ] Case 22 (`warp.background === resolveHex(cc.userMessageBackground ?? tokens.color.background)`) for every bundled theme
-- [ ] Case 23 **(corrected oracle — review C2):** every ANSI value matches `/^#[0-9a-f]{6}$/`;
-      polarity holds: `relLuminance(normal.black) < 0.5 < relLuminance(normal.white)` for
-      **every** theme incl. high-contrast/minimalist (catches the inversion bug). *No
-      contrast-vs-bg bound on the anchors — see Phase-1 rationale.*
+- [ ] **`accent` oracle (round-4):** per theme `accent === resolveHex(t.promptColor ?? c.brandPrimary)` and matches `/^#[0-9a-f]{6}$/` (else a wrong source mapping bakes silently into the golden)
+- [ ] Case 23 **(corrected oracle — review C2):** every ANSI value (incl. `accent`) matches
+      `/^#[0-9a-f]{6}$/`; polarity holds: `relLuminance(normal.black) < 0.5 <
+      relLuminance(normal.white)` for **every** theme incl. high-contrast/minimalist, **plus
+      a separation gate `relLuminance(white) − relLuminance(black) > 0.3`** (so a monochrome
+      theme can't pass the split by a hair). *No contrast-vs-bg bound on the anchors.*
 - [ ] Case 24 (`rgb()` → hex; `ansi:`/`ansi256()` → the **specific** `tokens.color` fallback hex; never `#NaN`)
 - [ ] Case 25 (name `"Solarized: Dark"` → valid YAML scalar + TOML string; unicode/emoji UTF-8-valid)
 - [ ] Case 26a (`deriveAll:false` theme omitting error/success/warning → those slots omitted, no `#NaN`)
@@ -196,7 +214,8 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
 
 - **`activateWarpTheme(theme, yamlPath, ccTheme)`** (new) — exactly the spec state model:
   1. `settings.toml` absent → create minimal (`[appearance.themes]\n` + activation line),
-     write state `{activeId, yamlPath, originalValueText:null}`; return `{activated:true}`.
+     write state `{activeId, yamlPath, originalValueText:null, sectionInserted:true}`;
+     return `{activated:true}`.
   1a. minimal-file branch must `fs.mkdirSync(WARP_DIR,{recursive:true})` (and `WARP_THEMES_DIR`
      for the state file) before writing.
   2. read text; `hash0 = sha256(text)`; `loc = warp.locateThemeValue(text)`.
@@ -211,8 +230,10 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
   7. **concurrency:** re-read `settings.toml`; if `sha256 !== hash0` → return
      `{activated:false, reason:'changed', line}` (YAML already written; settings untouched
      so the concurrent edit survives).
-  8. `newText = loc.kind==='missing' ? warp.insertThemeKey(...) : warp.replaceThemeValue(...)`;
-     `writeTextAtomic(WARP_SETTINGS, newText)`; write/refresh state (preserve originalValueText).
+  8. `{text:newText, sectionInserted} = loc.kind==='missing' ? warp.insertThemeKey(...) :
+     {text: warp.replaceThemeValue(...), sectionInserted:false}`; `writeTextAtomic(WARP_SETTINGS,
+     newText)`; write/refresh state — **preserve `originalValueText`; record `sectionInserted`**
+     (true only when we created the `[appearance.themes]` header, incl. the minimal-file branch).
   - Returns a result object; **never throws** on the expected branches (only the injected
     `crash-before-rename` seam throws, exercised by test 19).
 
@@ -222,7 +243,8 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
   2. if `settings.toml` readable: `loc = locateThemeValue`; **restore only if** current
      value matches what we wrote (`custom_<activeId>` + our yamlPath); then
      `state.originalValueText != null` → `warp.replaceThemeValue` with it; else
-     `warp.removeThemeValue(text, loc)` (undo our insert) → `writeTextAtomic`.
+     `warp.removeThemeValue(text, loc, { removeEmptySection: state.sectionInserted })`
+     (undo our insert, keeping the header iff it pre-existed) → `writeTextAtomic`.
   3. delete `WARP_THEMES_DIR/<activeId>.yaml` if it sits within `WARP_THEMES_DIR` (`unlink`,
      ignore ENOENT); delete `WARP_STATE`. Leave `WARP_BAK`.
 
@@ -246,8 +268,11 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
     const slugHint = (pre && typeof pre.theme === "string" && pre.theme.startsWith("custom:"))
       ? pre.theme.slice("custom:".length) : undefined;
     deactivateWarpTheme(slugHint);
-    // ...existing CC reset logic, reusing `pre` instead of re-reading (preserve the
-    //    existing exit(1)-on-unparseable and the "no custom theme" no-op branches)...
+    // ...existing CC reset logic, reusing `pre`. CRITICAL: readJson returns null for BOTH
+    //    absent and unparseable, so split them explicitly to preserve current behavior:
+    //      !fs.existsSync(SETTINGS_PATH) -> log "nothing to reset", return (exit 0)
+    //      pre === null (exists but bad JSON) -> log error, process.exit(1)
+    //    then the unchanged "no custom: theme" no-op + theme-file removal branches.
   }
   ```
 
@@ -277,7 +302,10 @@ rollout. Implements `docs/superpowers/specs/2026-05-29-warp-theming-design.md`.
       lines above section → reset re-locates by content)**, 8/9 (minimal-file content +
       reset-to-no-`theme`-key)
 - [ ] Concurrency **29** via `WL_WARP_FAULT=mutate-settings` seam → not-activated + paste-line
-      + the concurrent edit survives in `settings.toml`
+      + the concurrent edit survives in `settings.toml`. **Injection mechanism (round-4):**
+      the existing `run(home, args)` helper forwards `process.env` but takes **no** per-call
+      `env` override — `warp-io.test.js` must either add an `env` param to its own `run`
+      copy or `process.env.WL_WARP_FAULT = …` / `delete` around each call (set-and-restore).
 - [ ] Not-activated branches **30** (unreadable / malformed / duplicate-in-`[appearance]`):
       YAML written + paste-line printed + no false "applied successfully"
 - [ ] Round-trip **18** (original → activate → deactivate → byte-identical to the real-file

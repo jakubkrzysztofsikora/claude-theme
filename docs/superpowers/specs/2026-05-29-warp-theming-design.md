@@ -101,15 +101,18 @@ selected by background polarity — `darker` if `luminance(background) < 0.5`, e
 test has a single oracle. (`contrastFloor` is **not** used here — it adjusts a color, it
 does not pick a keyword.)
 
-**Polarity-and-contrast-safe ANSI anchors (review B3, QA white-of-two-darks):** ANSI
-`black`/`white` are absolute anchors that must stay dark/light on *every* theme,
-including monochrome/high-contrast where both candidate tokens may be dark:
-- `normal.black` = `contrastFloor(darker-of{textPrimary,surface,background}, background, MIN_ANSI)`
-- `normal.white` = `contrastFloor(lighter-of{textPrimary,surface}, background, MIN_ANSI)`
-- `MIN_ANSI` is pinned at **3.0** (WCAG large-text floor; same family as the CC
-  derivation floors). `contrastFloor` nudges the anchor toward the needed extreme when
-  the raw candidate is too low-contrast (fixes "lighter-of-two-dark-colors" yielding a
-  dark "white").
+**Polarity-pole ANSI anchors (review B3 / plan round-3 C1):** ANSI `black`/`white` are
+absolute anchors that must stay dark/light on *every* theme. **`contrastFloor` is the
+WRONG primitive here** — it pushes toward whichever extreme has more headroom vs `bg`, so
+on a dark bg it drags "black" toward white (traced: cyberpunk `#0A0612 → #6c6a71`).
+Instead use luminance poles:
+- `black` = darkest of {textPrimary, surface, background}; if `relLuminance(black) > 0.15`,
+  `mix(black, "#000000", 0.6)` to force it genuinely dark.
+- `white` = lightest of {textPrimary, surface, background}; if `relLuminance(white) < 0.85`,
+  `mix(white, "#ffffff", 0.6)` to force it genuinely light (fixes "lighter-of-two-darks").
+- The 0.15/0.85 guards are a single best-effort nudge; the **only hard contract** is the
+  polarity gate the test asserts. **No contrast-vs-bg floor is applied** — on a near-black
+  bg ANSI "black" legitimately can't clear 3:1 (it reads against light text, not bg).
 
 **`lighten` for bright variants is pinned (review N3):** use `cli-derive.lighten` (which
 validates hex and requires an explicit amount) with **amount `0.25`** — the
@@ -130,14 +133,14 @@ these, so their goldens carry full palettes.
 | `foreground` | `terminal.assistantColor` → `tokens.color.textPrimary` |
 | `accent` | `terminal.promptColor` → `tokens.color.brandPrimary` |
 | `details` | keyword by background luminance (pinned formula above) |
-| `normal.black` | `contrastFloor(darker-of{textPrimary,surface,background}, bg, 3.0)` |
+| `normal.black` | darkest-of{textPrimary,surface,background}, forced to a dark pole (`mix → #000000` if lum>0.15) |
 | `normal.red` | `terminal.errorColor` → `tokens.color.error` *(omit if absent)* |
 | `normal.green` | `terminal.successColor` → `tokens.color.success` *(omit if absent)* |
 | `normal.yellow` | `tokens.color.warning` *(omit if absent)* |
 | `normal.blue` | `terminal.systemColor` → `tokens.color.brandAccent` |
 | `normal.magenta` | `tokens.color.textSecondary` → `brandPrimary` |
 | `normal.cyan` | `terminal.userColor` → `tokens.color.brandPrimary` |
-| `normal.white` | `contrastFloor(lighter-of{textPrimary,surface}, bg, 3.0)` |
+| `normal.white` | lightest-of{textPrimary,surface,background}, forced to a light pole (`mix → #ffffff` if lum<0.85) |
 | `bright.*` | `lighten(normal.*, 0.25)`; `bright.white` clamped at `#FFFFFF` |
 
 Every emitted color is asserted to match `/^#[0-9a-f]{6}$/` (test), and
@@ -182,8 +185,11 @@ documented as such**. But `:` and `#` are **not** banned and break a bare YAML s
 ## Activation / reset state model (review B1/R2/R3/m1 — the top bug)
 
 Single source of truth for "the user's true original":
-`~/.warp/themes/.whitelabel-state.json` = `{ activeId, yamlPath, originalValueText }`,
-plus a one-time `~/.warp/settings.toml.whitelabel.bak`.
+`~/.warp/themes/.whitelabel-state.json` =
+`{ activeId, yamlPath, originalValueText, sectionInserted }`, plus a one-time
+`~/.warp/settings.toml.whitelabel.bak`. `sectionInserted` records whether *we* created the
+`[appearance.themes]` header, so reset only removes the header when it was ours and the
+section body is otherwise empty (protects a pre-existing `system_theme` sibling).
 
 **`activateWarpTheme(theme, yamlPath, ccTheme)`:**
 1. If `settings.toml` absent → create minimal file (`[appearance.themes]` + theme line),
@@ -311,8 +317,10 @@ single-quoted regex string containing `{ } , "`.
     `bright.white` clamped, ≥ `MIN_ANSI` contrast vs background.
 22. **For every bundled theme:** resolved `warp.background === resolveHex(ccTheme.overrides.userMessageBackground)`.
 23. For every bundled theme **incl. `high-contrast`/`minimalist`**: all emitted ANSI
-    colors match `/^#[0-9a-f]{6}$/`; `normal.black` ≤ and `normal.white` ≥ `MIN_ANSI`
-    contrast vs background (catches the "lighter-of-two-dark-colors" hole).
+    colors (incl. `accent`) match `/^#[0-9a-f]{6}$/`; **polarity** holds
+    `relLuminance(normal.black) < 0.5 < relLuminance(normal.white)` with a separation gate
+    `relLuminance(white) − relLuminance(black) > 0.3` (catches the inversion + the
+    "two-darks" hole). No contrast-vs-bg bound on the anchors.
 24. A `terminal.*` color in `rgb()` → correct hex; in `ansi:`/`ansi256()` → equals the
     **specific** documented `tokens.color` fallback hex (not merely "valid hex"); never `#NaN`.
 25. Name `"Solarized: Dark"` → valid YAML scalar + valid TOML basic string; unicode/emoji
