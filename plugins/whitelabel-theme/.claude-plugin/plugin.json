@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "whitelabel-theme",
+  "displayName": "White-Label Theme Manager",
+  "version": "0.1.0",
+  "description": "Apply, preview, list, reset, and build white-label Claude themes across the browser, the Claude Code CLI, and Warp. Thin wrapper over the zero-dependency `claude-whitelabel-themes` npm CLI.",
+  "author": {
+    "name": "Jakub Sikora",
+    "url": "https://github.com/jakubkrzysztofsikora"
+  },
+  "homepage": "https://github.com/jakubkrzysztofsikora/claude-theme",
+  "repository": "https://github.com/jakubkrzysztofsikora/claude-theme",
+  "license": "MIT",
+  "keywords": ["theme", "customization", "warp", "browser-extension"]
+}
