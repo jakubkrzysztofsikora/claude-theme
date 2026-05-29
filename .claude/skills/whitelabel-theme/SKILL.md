@@ -158,7 +158,59 @@ A minimal valid theme requires these fields:
 }
 ```
 
-Optional sections include `tokens.typography`, `tokens.logo`, `tokens.favicon`, and `terminal` color overrides.
+Optional sections include `tokens.typography`, `tokens.logo`, `tokens.favicon`, and `terminal` (the Claude Code CLI channel).
+
+## Terminal (Claude Code CLI) Theming
+
+The `terminal` block controls the compiled Claude Code custom theme. The token
+set is **verified against the installed Claude Code binary** (currently 2.1.154)
+via `scripts/extract-cc-tokens.js`; tokens that don't exist in the build (e.g.
+`selectionBg`, `messageActionsBackground`) are excluded. Re-run that script when
+targeting a newer Claude Code version.
+
+```json
+"terminal": {
+  "deriveAll": true,
+  "base": "dark",
+  "userColor": "#FF007F",
+  "assistantColor": "#F8F8FF",
+  "backgroundColor": "#0A0612",
+  "promptColor": "#FF007F",
+  "errorColor": "#FF1A1A",
+  "successColor": "#39FF14",
+  "systemColor": "#00F0FF",
+  "overrides": { "diffAdded": "#174c13", "rainbow_violet": "#da45f7" }
+}
+```
+
+- **`deriveAll`** (boolean, default `false`) — when `true`, the full ~55-token
+  set (diffs, selection-adjacent UI, rainbow, subagent colors, etc.) is
+  **derived from the palette**, so the terminal changes dramatically. When
+  `false` (the default), only the ~14 explicitly-mapped tokens are emitted —
+  this preserves backward compatibility. **Requires** hex
+  `tokens.color.success`, `error`, and `warning` (note: there is no
+  `warningColor` terminal field — warning is always sourced from
+  `tokens.color.warning`).
+- **Precedence** (lowest → highest): derived set → friendly `terminal.*` fields
+  → `terminal.overrides`. Under `deriveAll`, only **explicit** `terminal.*`
+  fields override the derived values (the `tokens.color` fallbacks are
+  suppressed), so a color you set by hand always wins over inference.
+- **`base`** — the Claude Code base preset to extend: `dark`, `light`,
+  `dark-daltonized`, `light-daltonized`, `dark-ansi`, `light-ansi`. If omitted,
+  it is inferred from `tags`.
+- **`overrides`** — a raw escape hatch mapping a Claude Code token name directly
+  to a color. Use the exact token names (e.g. `diffAddedWord`,
+  `rainbow_violet_shimmer`, `red_FOR_SUBAGENTS_ONLY`). Unknown names are
+  rejected with an error.
+- **Color values** in `terminal.*` and `overrides` accept: hex (`#rgb` /
+  `#rrggbb`), `rgb(r,g,b)` (0–255), `ansi256(n)` (0–255), or `ansi:<name>`
+  (e.g. `ansi:magentaBright`). `ansi:` values only follow the terminal palette
+  under an `*-ansi` base — a warning is emitted otherwise. `tokens.color` stays
+  hex-only (it feeds the browser CSS channel).
+- The browser extension channel **ignores** `terminal` entirely.
+
+The CLI applies theme files live (hot-reload) — edit `~/.claude/themes/<id>.json`
+or re-run apply, then re-select via `/theme` if needed.
 
 ## Extension Installation
 
@@ -176,5 +228,5 @@ After running `/apply-theme`, load the extension in Chrome:
 - **Native Node.js APIs only**: `fs`, `path`, `crypto`, `http`, `child_process`, `readline`, `url`
 - **No external network calls** except for optional font URLs
 - **CSP-friendly**: Generated extensions use no inline scripts except the baked-in theme data
-- **Input validation**: All theme files are validated against JSON Schema before processing
+- **Input validation**: All theme files are validated in code by `validateTheme()` before processing (the JSON Schema in `themes/schema.json` is documentation; it is not loaded at runtime). Untrusted fields are HTML-escaped / JSON-encoded at every generated-artifact sink, and `terminal.overrides` keys are allowlisted against the verified token set with prototype-pollution keys rejected.
 - **No eval() or dynamic code execution**: All code is generated from static templates

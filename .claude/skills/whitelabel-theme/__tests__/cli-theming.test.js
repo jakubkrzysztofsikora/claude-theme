@@ -19,12 +19,48 @@ const GOLDEN = path.join(__dirname, "golden");
 
 const {
   buildClaudeCodeTheme,
+  validateTheme,
+  isColorValue,
+  generatePopupHtml,
   lighten,
   pickBase,
   CC_TOKENS,
   CLAUDE_THEMES_DIR,
   THEMES_DIR,
 } = require(BUILD);
+
+// A minimal valid theme; spread + override per test.
+function validBase(extra = {}) {
+  return {
+    name: "Test",
+    id: "test",
+    version: "1.0.0",
+    author: "Tester",
+    description: "A test theme",
+    license: "MIT",
+    tags: ["dark"],
+    preview: {
+      background: "#000000",
+      surface: "#111111",
+      textPrimary: "#ffffff",
+      brandPrimary: "#ff007f",
+      userMessageText: "#ffffff",
+    },
+    tokens: {
+      color: {
+        brandPrimary: "#ff007f",
+        background: "#0a0612",
+        surface: "#1a1025",
+        textPrimary: "#f8f8ff",
+        userMessageText: "#ffffff",
+        success: "#39ff14",
+        error: "#ff1a1a",
+        warning: "#ffe600",
+      },
+    },
+    ...extra,
+  };
+}
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -280,4 +316,236 @@ test("reset with no settings.json at all exits 0 and creates nothing", () => {
   const r = run(home, ["reset"]);
   assert.equal(r.status, 0, r.stderr);
   assert.ok(!fs.existsSync(path.join(home, ".claude", "settings.json")));
+});
+
+// --- deriveAll, overrides, base (Phase 3 behaviour) ----------------------
+
+test("default path (no deriveAll) emits only the friendly subset", () => {
+  const out = buildClaudeCodeTheme(validBase());
+  assert.ok(Object.keys(out.overrides).length <= 14);
+  assert.ok(!("diffAdded" in out.overrides));
+  assert.ok(!("rainbow_red" in out.overrides));
+});
+
+test("deriveAll emits the full token set; explicit terminal.* wins", () => {
+  const out = buildClaudeCodeTheme(
+    validBase({ terminal: { deriveAll: true, promptColor: "#abcdef" } }),
+  );
+  assert.equal(Object.keys(out.overrides).length, CC_TOKENS.size);
+  assert.ok("diffAdded" in out.overrides);
+  assert.ok("rainbow_violet_shimmer" in out.overrides);
+  // explicit promptColor overrides derived claude/promptBorder
+  assert.equal(out.overrides.claude, "#abcdef");
+  assert.equal(out.overrides.promptBorder, "#abcdef");
+});
+
+test("terminal.overrides win over derived and friendly", () => {
+  const out = buildClaudeCodeTheme(
+    validBase({
+      terminal: {
+        deriveAll: true,
+        promptColor: "#abcdef",
+        overrides: { claude: "#111111", diffAdded: "#222222" },
+      },
+    }),
+  );
+  assert.equal(out.overrides.claude, "#111111"); // beats explicit promptColor
+  assert.equal(out.overrides.diffAdded, "#222222"); // beats derived
+});
+
+test("terminal.base is respected; absent falls back to pickBase", () => {
+  const withBase = buildClaudeCodeTheme(
+    validBase({ terminal: { base: "dark-ansi" } }),
+  );
+  assert.equal(withBase.base, "dark-ansi");
+  const noBase = buildClaudeCodeTheme(validBase());
+  assert.equal(noBase.base, "dark"); // pickBase from tags
+});
+
+test("systemColor maps to planMode/ide and validates", () => {
+  const theme = validBase({ terminal: { systemColor: "#00f0ff" } });
+  assert.deepEqual(validateTheme(theme), []);
+  const out = buildClaudeCodeTheme(theme);
+  assert.equal(out.overrides.planMode, "#00f0ff");
+  assert.equal(out.overrides.ide, "#00f0ff");
+});
+
+// --- validation: colorValue --------------------------------------------------
+
+test("isColorValue accepts the documented forms, rejects the rest", () => {
+  for (const v of [
+    "#fff",
+    "#FF007F",
+    "rgb(255,0,127)",
+    "rgb( 0 , 0 , 0 )",
+    "ansi256(213)",
+    "ansi:magentaBright",
+  ]) {
+    assert.ok(isColorValue(v), `should accept ${v}`);
+  }
+  for (const v of [
+    "#ff",
+    "rgb(300,0,0)",
+    "ansi256(256)",
+    "ansi:bogus",
+    "rgb(0,0,0);url(x)",
+    "#000}",
+    "red",
+    42,
+    null,
+  ]) {
+    assert.ok(!isColorValue(v), `should reject ${v}`);
+  }
+});
+
+// --- validation: security rejects -------------------------------------------
+
+test("terminal.overrides rejects prototype-pollution keys", () => {
+  for (const key of ["__proto__", "constructor", "prototype"]) {
+    const errs = validateTheme(
+      validBase({ terminal: { overrides: { [key]: "#000000" } } }),
+    );
+    assert.ok(
+      errs.some((e) => e.includes(key) || e.toLowerCase().includes("illegal")),
+      `expected rejection for ${key}: ${errs}`,
+    );
+  }
+  // ...and the build path does not pollute Object.prototype. Use a COMPUTED
+  // key (own enumerable, mirroring JSON.parse) with a value that WOULD pollute
+  // if assigned onto a prototype — a plain `{ __proto__: ... }` literal would
+  // invoke the proto-setter instead and prove nothing.
+  const evil = validBase({
+    terminal: { overrides: { ["__proto__"]: { polluted: true } } },
+  });
+  validateTheme(evil);
+  buildClaudeCodeTheme(evil);
+  assert.equal({}.polluted, undefined);
+  assert.equal(Object.prototype.polluted, undefined);
+});
+
+test("terminal.overrides rejects unknown token + bad colorValue", () => {
+  assert.ok(
+    validateTheme(
+      validBase({ terminal: { overrides: { notAToken: "#000000" } } }),
+    ).some((e) => e.includes("Unknown override token")),
+  );
+  assert.ok(
+    validateTheme(
+      validBase({ terminal: { overrides: { diffAdded: "rgb(300,0,0)" } } }),
+    ).some((e) => e.includes("diffAdded")),
+  );
+});
+
+test("terminal.overrides enforces a key-count cap", () => {
+  const overrides = {};
+  for (let i = 0; i < 201; i++) overrides[`k${i}`] = "#000000";
+  assert.ok(
+    validateTheme(validBase({ terminal: { overrides } })).some((e) =>
+      e.includes("too many keys"),
+    ),
+  );
+});
+
+test("rejects CSS-breakout fontFamily and over-large tokens.color", () => {
+  assert.ok(
+    validateTheme(
+      validBase({
+        tokens: {
+          color: validBase().tokens.color,
+          typography: { fontFamily: "Inter; } body { background: red }" },
+        },
+      }),
+    ).some((e) => e.includes("fontFamily")),
+  );
+  const color = { ...validBase().tokens.color };
+  for (let i = 0; i < 201; i++) color[`x${i}`] = "#000000";
+  assert.ok(
+    validateTheme(validBase({ tokens: { color } })).some((e) =>
+      e.includes("too many keys"),
+    ),
+  );
+});
+
+test("readJson rejects an oversized theme file (apply exits non-zero)", () => {
+  const home = tmpHome();
+  const big = path.join(home, "big-theme.json");
+  const theme = JSON.parse(
+    fs.readFileSync(path.join(THEMES, "cyberpunk", "theme.json"), "utf8"),
+  );
+  // pad with a huge, ignored field to exceed the 512KB cap
+  theme._pad = "x".repeat(600 * 1024);
+  fs.writeFileSync(big, JSON.stringify(theme));
+  const r = run(home, ["apply", big]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /too large/i);
+});
+
+test("deriveAll requires hex success/error/warning", () => {
+  const theme = validBase({ terminal: { deriveAll: true } });
+  delete theme.tokens.color.success;
+  assert.ok(
+    validateTheme(theme).some(
+      (e) => e.includes("deriveAll") && e.includes("success"),
+    ),
+  );
+});
+
+test("terminal rejects unknown direct keys and bad base", () => {
+  assert.ok(
+    validateTheme(validBase({ terminal: { bogusField: "#000000" } })).some(
+      (e) => e.includes("Unknown"),
+    ),
+  );
+  assert.ok(
+    validateTheme(validBase({ terminal: { base: "neon" } })).some((e) =>
+      e.includes("terminal.base"),
+    ),
+  );
+});
+
+test("ansi color value with non-ansi base validates (warn is runtime, not error)", () => {
+  const theme = validBase({
+    terminal: { base: "dark", overrides: { planMode: "ansi:cyanBright" } },
+  });
+  assert.deepEqual(validateTheme(theme), []);
+});
+
+// --- validation: injection / XSS boundary -----------------------------------
+
+test("rejects breakout characters in name (incl. comment breakout)", () => {
+  for (const name of [
+    "x'; fetch(1); y='",
+    "<img src=x>",
+    "a*/b",
+    "a/b",
+    "back`tick",
+  ]) {
+    assert.ok(
+      validateTheme(validBase({ name })).some((e) => e.includes('"name"')),
+      `expected rejection for name ${JSON.stringify(name)}`,
+    );
+  }
+  assert.deepEqual(validateTheme(validBase({ name: "Neon District" })), []);
+});
+
+test("rejects angle brackets in description; rejects unanchored version", () => {
+  assert.ok(
+    validateTheme(
+      validBase({ description: "</em><img src=x onerror=alert(1)>" }),
+    ).some((e) => e.includes("description")),
+  );
+  assert.ok(
+    validateTheme(
+      validBase({ version: '1.0.0"><img src=x onerror=alert(1)>' }),
+    ).some((e) => e.includes("version")),
+  );
+  assert.deepEqual(validateTheme(validBase({ version: "1.0.0-beta.1" })), []);
+});
+
+test("generatePopupHtml escapes untrusted fields (defence in depth)", () => {
+  const html = generatePopupHtml(
+    validBase({ author: "</div><img src=x onerror=alert(1)>" }),
+  );
+  assert.ok(!html.includes("<img src=x onerror"), "author must be escaped");
+  assert.ok(html.includes("&lt;") || html.includes("&#"), "expected escaping");
 });

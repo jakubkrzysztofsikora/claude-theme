@@ -45,6 +45,7 @@
     }
   },
   "terminal": {
+    "deriveAll": true,
     "userColor": "#FF007F",
     "assistantColor": "#F8F8FF",
     "systemColor": "#00F0FF",
