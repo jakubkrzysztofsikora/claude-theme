@@ -147,3 +147,18 @@ test("theme arg resolves by dir name and by id, not just path", () => {
   assert.equal(run(cwd, ["validate", "neon-district"]).status, 0, "by theme id");
   assert.notEqual(run(cwd, ["validate", "no-such-theme"]).status, 0, "bogus id still errors");
 });
+
+// The published bin wrapper (bin/claude-theme.js) is the public entrypoint — it depends
+// on build-theme.js exporting main(). Spawn it directly so a future refactor that breaks
+// that contract fails the suite (the other tests bypass the wrapper).
+test("bin/claude-theme.js wrapper runs the CLI", () => {
+  const BIN = path.join(REPO, "bin", "claude-theme.js");
+  const home = tmp();
+  const r = spawnSync("node", [BIN, "list"], {
+    cwd: tmp(),
+    env: { ...process.env, HOME: home, USERPROFILE: home },
+    encoding: "utf8",
+  });
+  assert.equal(r.status, 0, (r.stdout || "") + (r.stderr || ""));
+  assert.match((r.stdout || "") + (r.stderr || ""), /forest-canopy|neon-district/, "wrapper lists themes");
+});
