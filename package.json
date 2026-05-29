@@ -1,7 +1,7 @@
 {
   "name": "claude-whitelabel-themes",
   "version": "1.0.0",
-  "description": "Zero-dependency white-label theming system for Claude. Community theme marketplace with browser extension + CLI.",
+  "description": "Author a Claude theme once, apply it across the claude.ai web UI, the Claude Code CLI, and Warp — from one theme JSON. Zero runtime dependencies, MIT. Unofficial, not affiliated with Anthropic.",
   "scripts": {
     "theme:apply": "node .claude/skills/whitelabel-theme/build-theme.js apply",
     "theme:compile": "node .claude/skills/whitelabel-theme/build-theme.js compile",

@@ -1,6 +1,6 @@
 # Claude White-Label Themes
 
-> **Zero-dependency theming system for Claude. Community-driven theme marketplace.**
+> **Author your theme once, apply it everywhere Claude lives** — the claude.ai web UI, the Claude Code CLI, and your Warp terminal — from a single theme JSON. Zero runtime dependencies, MIT licensed.
 
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status" />
@@ -18,6 +18,23 @@
   <a href="docs/API_REFERENCE.md">API Docs</a> &bull;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
 </p>
+
+---
+
+## Why this tool
+
+Every other Claude theming option is **single-surface** — it styles one place and stops there. This is the only project where you define a theme **once** and it compiles to all three surfaces Claude shows up in: the **claude.ai web UI** (a Chrome/Edge extension), the **Claude Code CLI** (a real `~/.claude/themes/<id>.json` custom theme), and your **Warp terminal** (a generated `~/.warp/themes/<id>.yaml`). One `theme.json` in, three consistent surfaces out — with WCAG-checked contrast and zero runtime dependencies.
+
+### How it compares
+
+| | claude.ai web | Claude Code CLI | Warp / terminal | Author-once (one source) | a11y / high-contrast | Zero runtime deps |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Claude White-Label Themes** (this tool) | Yes | Yes | Yes | Yes | Yes (WCAG AA/AAA themes + contrast checks) | Yes |
+| [ashwingopalsamy/claude-code-theme](https://github.com/ashwingopalsamy/claude-code-theme) | No | No (it's a VS Code theme) | No | No | No | n/a |
+| [rafsanmuhammed/claude-code-themes](https://github.com/rafsanmuhammed/claude-code-themes) | No | Yes | No | No | No | n/a |
+| Userstyles / Stylus | Yes (browser only) | No | No | No | No | n/a (browser extension) |
+
+> **Unofficial** — this is a community project and is **not affiliated with, endorsed by, or sponsored by Anthropic**. "Claude" is a trademark of Anthropic.
 
 ---
 
@@ -77,6 +94,9 @@ node .claude/skills/whitelabel-theme/build-theme.js list
 ---
 
 ## Features
+
+### Author Once, Apply Across Every Surface
+One `theme.json` is the single source of truth. `apply` compiles it into a Chrome/Edge extension for the **claude.ai web UI**, a custom theme for the **Claude Code CLI** (`~/.claude/themes/<id>.json`), and a **Warp** theme (`~/.warp/themes/<id>.yaml`) — so your colors, contrast, and identity stay consistent from browser to terminal without maintaining three separate configs.
 
 ### Zero Dependencies
 100% native Node.js and browser APIs. No `node_modules` to install, no supply chain to audit. The entire system runs on APIs available in Node.js 18+ and modern browsers.

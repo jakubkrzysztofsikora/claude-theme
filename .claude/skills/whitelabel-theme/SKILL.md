@@ -1,6 +1,6 @@
 ---
 title: White-Label Theme Manager
-description: Apply, preview, and manage custom themes for Claude's interface
+description: Author a Claude theme once and apply it across the claude.ai web UI, the Claude Code CLI, and Warp — from a single theme JSON. Zero runtime deps. Unofficial, not affiliated with Anthropic.
 author: Claude Themes Community
 version: 1.0.0
 commands:
@@ -16,7 +16,13 @@ commands:
 
 # White-Label Theme Manager
 
-A zero-dependency theming system for Claude that enables custom color schemes, typography, logos, and terminal styling through a browser extension and CLI toolchain.
+**Author your theme once, apply it everywhere Claude lives.** A single theme JSON
+compiles to all three surfaces — the **claude.ai web UI** (a Chrome extension),
+the **Claude Code CLI** (a `~/.claude/themes/<id>.json` custom theme), and your
+**Warp terminal** (a `~/.warp/themes/<id>.yaml` theme). No competing tool spans
+all three; each is single-surface. Zero runtime dependencies, MIT licensed.
+
+> Unofficial — a community project, not affiliated with or endorsed by Anthropic.
 
 ## How It Works
 
