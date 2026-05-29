@@ -212,6 +212,51 @@ targeting a newer Claude Code version.
 The CLI applies theme files live (hot-reload) — edit `~/.claude/themes/<id>.json`
 or re-run apply, then re-select via `/theme` if needed.
 
+## Warp Terminal Channel
+
+Claude Code's CLI theme only colors the *text it emits* — it cannot change the
+terminal's window background or font (those belong to the terminal emulator). For
+[Warp](https://www.warp.dev/), `apply` therefore also generates and activates a
+matching **Warp theme** so the whole-window background and ANSI palette change too.
+This happens automatically on every `apply`; no extra command.
+
+**What `apply` does for Warp:**
+
+1. **Generates** `~/.warp/themes/<id>.yaml` — derived from the theme's
+   `terminal.*` / `tokens.color` values (and the built CC theme, so the Warp
+   background matches the CC message-block background). The 16 ANSI colors,
+   `accent`, `foreground` (floored to AA 4.5:1 contrast for readability), and
+   `background` are all set; `details` (`darker`/`lighter`) tracks background
+   luminance.
+2. **Activates** it by editing `~/.warp/settings.toml` in place — a
+   **line-preserving** structural edit of the `theme` value under
+   `[appearance.themes]`. Every other line (your other settings, comments,
+   formatting) is byte-preserved; no TOML library is used.
+3. **Concurrency:** Warp owns `settings.toml` at runtime. The edit is
+   **abort-if-changed** — if the file changes between read and write (Warp running),
+   activation is skipped, the YAML is still written, and `apply` prints the exact
+   `theme = …` line to paste manually. **Apply with Warp closed** for reliable
+   activation. Reload/restart Warp to see the new theme.
+
+**Reset cleanup.** `reset` is symmetric: it restores the pre-automation `theme`
+value in `settings.toml` (captured once, on first apply), deletes
+`~/.warp/themes/<id>.yaml`, and clears its state — but only touches the `theme`
+value if it's still the one we wrote (so a theme you picked in Warp's UI after
+applying is left alone).
+
+**Artifacts** (all under `~/.warp/`): `themes/<id>.yaml` (the theme),
+`settings.toml.whitelabel.bak` (one-time pre-automation backup, manual-recovery
+insurance), and `themes/.whitelabel-state.json` (reset bookkeeping). `reset`
+removes the YAML and state; the `.bak` is left in place.
+
+**`deriveAll` and Warp.** The richer the CC derivation, the richer the Warp
+palette. All bundled themes ship with `deriveAll: true` except `minimalist`
+(kept monochrome by design); new themes from `init` get it by default.
+
+**Other terminals.** Only Warp is auto-themed. For iTerm/Terminal.app/Ghostty/etc.,
+set the terminal profile's background/colors yourself — the CLI theme still colors
+Claude Code's output there.
+
 ## Extension Installation
 
 After running `/apply-theme`, load the extension in Chrome:
